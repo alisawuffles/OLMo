@@ -55,3 +55,8 @@ site/
 /wandb/
 /scratch/
 core
+slurm
+
+# data & models
+olmo-mix-v2
+models
