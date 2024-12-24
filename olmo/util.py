@@ -927,3 +927,10 @@ def flatten_dict(dictionary, parent_key="", separator=".", include_lists=False):
         else:
             d[new_key] = value
     return d
+
+
+def ensure_dir(path: PathOrStr):
+    path = Path(path)
+    if not path.is_dir():
+        path.mkdir(parents=True)
+    return path
