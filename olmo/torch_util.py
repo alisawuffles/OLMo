@@ -1,6 +1,8 @@
 import gc
 import os
+import subprocess
 from typing import Optional, TypeVar
+from datetime import timedelta
 
 import torch
 import torch.distributed as dist
@@ -33,10 +35,12 @@ def get_node_rank() -> int:
 
 
 def get_world_size() -> int:
-    if is_distributed():
-        return dist.get_world_size()
-    else:
-        return 1
+    world_size = 1
+    for v in ("WORLD_SIZE", "PMI_SIZE", "SLURM_NTASKS", "OMPI_COMM_WORLD_SIZE"):
+        if v in os.environ:
+            world_size = int(os.environ[v])
+            break
+    return world_size
 
 
 def get_local_world_size() -> int:
@@ -44,14 +48,21 @@ def get_local_world_size() -> int:
 
 
 def get_global_rank() -> int:
-    if is_distributed():
-        return int(os.environ.get("RANK") or dist.get_rank())
-    else:
-        return 0
+    global_rank = 0
+    for v in ("RANK", "PMI_RANK", "SLURM_PROCID", "OMPI_COMM_WORLD_RANK"):
+        if v in os.environ:
+            global_rank = int(os.environ[v])
+            break
+    return global_rank
 
 
 def get_local_rank() -> int:
-    return int(os.environ.get("LOCAL_RANK") or 0)
+    local_rank = 0
+    for v in ("LOCAL_RANK", "MPI_LOCALRANKID", "SLURM_LOCALID", "OMPI_COMM_WORLD_LOCAL_RANK"):
+        if v in os.environ:
+            local_rank = int(os.environ[v])
+            break
+    return local_rank
 
 
 def get_fs_local_rank() -> int:
@@ -156,3 +167,22 @@ def get_cumulative_document_lengths(doc_lens: torch.Tensor) -> torch.Tensor:
             torch.cumsum(doc_lens.masked_select(doc_lens != 0), 0, dtype=torch.int32),
         ]
     )
+
+
+def init_distributed_mode():
+    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        print("WE ARE IN A TORCHRUN ENVIRONMENT")
+        os.environ["LOCAL_SIZE"] = str(torch.cuda.device_count())
+    elif "SLURM_PROCID" in os.environ:
+        print("WE ARE IN A SLURM ENVIRONMENT")
+        proc_id = int(os.environ["SLURM_PROCID"])
+        ntasks = int(os.environ["SLURM_NTASKS"])
+        node_list = os.environ["SLURM_NODELIST"]
+        num_gpus = torch.cuda.device_count()
+        addr = subprocess.getoutput("scontrol show hostname {} | head -n1".format(node_list))
+        os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", "29500")
+        os.environ["MASTER_ADDR"] = addr
+        os.environ["WORLD_SIZE"] = str(ntasks)
+        os.environ["RANK"] = str(proc_id)
+        os.environ["LOCAL_RANK"] = str(os.environ["SLURM_LOCALID"])
+        os.environ["LOCAL_SIZE"] = str(num_gpus)

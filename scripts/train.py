@@ -36,6 +36,7 @@ from olmo.torch_util import (
     get_world_size,
     peak_gpu_memory,
     seed_all,
+    init_distributed_mode
 )
 from olmo.train import Trainer
 from olmo.util import (
@@ -114,6 +115,8 @@ def main(cfg: TrainConfig) -> None:
             name=cfg.wandb.name,
             tags=cfg.wandb.tags,
             config=cfg.asdict(exclude=["wandb"]),
+            id=cfg.wandb.run_id,
+            resume=cfg.wandb.resume,
         )
 
     barrier()
@@ -362,6 +365,7 @@ if __name__ == "__main__":
     except RuntimeError as e:
         print(f"failed to set multiprocessing start method: {e}")
     log.info(f"Multiprocessing start method set to '{mp.get_start_method()}'")
+    init_distributed_mode()
 
     # Set CUDA device.
     torch.cuda.set_device(f"cuda:{get_local_rank()}")
@@ -387,4 +391,5 @@ if __name__ == "__main__":
         raise OLMoCliError(f"Usage: {sys.argv[0]} [CONFIG_PATH] [OPTIONS]")
 
     cfg = TrainConfig.load(yaml_path, [clean_opt(s) for s in args_list])
+    log.info(f"Model will be saved to {cfg.save_folder}")
     main(cfg)
