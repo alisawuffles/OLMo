@@ -491,6 +491,7 @@ class Trainer:
                 # Same as above, caught when another (file-system) local rank 0 has already made the 'latest' symlink.
                 # This can happen when nodes are saving to a common NFS drive but otherwise have distinct
                 # file-systems.
+                log.info(f"{latest_path.resolve().name != checkpoint_dir.name}")
                 if latest_path.resolve().name != checkpoint_dir.name:
                     raise
 
