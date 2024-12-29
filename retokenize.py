@@ -123,7 +123,7 @@ def incremental_retokenize(data, progress=True):
 
 def incremental_retokenize_parallel(data, fout, progress=True):
     total_bytes = 0
-    with Pool(4) as p:
+    with Pool(224) as p:
         imap = p.imap(process_chunk, smart_coalesce(split_on_eos(data)))
         for byte_count, result_chunk in imap:
             result_chunk.tofile(fout)
