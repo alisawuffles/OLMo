@@ -62,7 +62,7 @@ scheduler:
   name: cosine_with_warmup
   units: tokens
   t_warmup: 8388608000
-  t_max: 5e12
+  # t_max: 5e12
   alpha_f: 0.1
   warmup_min_lr: 0.0
 
@@ -74,7 +74,7 @@ save_overwrite: false
 
 save_folder: /lustre/fsw/nvr_lacr_llm/aliliu/olmo/models/${run_name}
 save_interval: 1000
-save_interval_ephemeral: 100
+save_interval_ephemeral: 200
 save_num_checkpoints_to_keep: -1
 sharded_checkpointer: olmo_core
 
