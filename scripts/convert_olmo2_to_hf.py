@@ -24,12 +24,14 @@ import yaml
 from tokenizers import Tokenizer
 from transformers import Olmo2Config, Olmo2ForCausalLM
 from transformers.models.gpt2.tokenization_gpt2_fast import GPT2TokenizerFast
+from olmo.checkpoint import build_sharded_checkpointer
+from olmo.config import TrainConfig
 
 """
 Sample usage:
 
 ```
-python src/transformers/models/olmo2/convert_olmo2_weights_to_hf.py \
+python src/transformers/models/olmo2/convert_olmo2_to_hf.py \
     --input_dir /path/to/downloaded/olmo2/weights --output_dir /output/path
 ```
 
@@ -69,6 +71,7 @@ def write_model(
     safe_serialization=True,
     fix_eos_token_id=True,
     tmp_cleanup=True,
+    sharded=True,
 ):
     os.makedirs(model_path, exist_ok=True)
     tmp_model_path = os.path.join(model_path, "tmp")
@@ -101,15 +104,22 @@ def write_model(
 
     print(f"Fetching all parameters from the checkpoint at {input_base_path}.")
 
-    # Not sharded
-    # (The sharded implementation would also work, but this is simpler.)
-    loaded = torch.load(os.path.join(input_base_path, "model.pt"), map_location="cpu")
+    if sharded:
+        print("Unsharding checkpoint.")
+        config = TrainConfig.load(os.path.join(input_base_path, "config.yaml"), validate_paths=False)
+        checkpointer = build_sharded_checkpointer(config, name=config.sharded_checkpointer)
+        loaded, _, _ = checkpointer.unshard_checkpoint(
+            input_base_path,
+            load_optimizer_state=False,
+            load_trainer_state=False,
+        )
+    else:
+        loaded = torch.load(os.path.join(input_base_path, "model.pt"), map_location="cpu")
 
     param_count = 0
     index_dict: Dict[str, Any] = {"weight_map": {}}
     for layer_i in range(n_layers):
         filename = f"pytorch_model-{layer_i + 1}-of-{n_layers + 1}.bin"
-        # Unsharded
         # TODO: Layernorm stuff
         # TODO: multi query attention
         fused_dims = [dim, dims_per_head * num_key_value_heads, dims_per_head * num_key_value_heads]
@@ -292,6 +302,12 @@ def main():
         dest="safe_serialization",
         help="Whether or not to save using `safetensors`.",
     )
+    parser.add_argument(
+        "--no_sharded",
+        action="store_false",
+        dest="sharded",
+        help="Whether the model checkpoint is sharded.",
+    )
     args = parser.parse_args()
     write_model(
         model_path=args.output_dir,
@@ -301,6 +317,7 @@ def main():
         tokenizer_path=args.tokenizer_json_path,
         fix_eos_token_id=args.fix_eos_token_id,
         tmp_cleanup=args.tmp_cleanup,
+        sharded=args.sharded,
     )
 
 
