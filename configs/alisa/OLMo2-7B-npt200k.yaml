@@ -74,7 +74,7 @@ save_overwrite: false
 
 save_folder: /lustre/fsw/nvr_lacr_llm/aliliu/olmo/models/${run_name}
 save_interval: 1000
-save_interval_ephemeral: 100
+save_interval_ephemeral: 200
 save_num_checkpoints_to_keep: -1
 sharded_checkpointer: olmo_core
 
