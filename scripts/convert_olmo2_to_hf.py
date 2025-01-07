@@ -22,6 +22,7 @@ from typing import Any, Dict
 import torch
 import yaml
 from tokenizers import Tokenizer
+from tokenizers.decoders import ByteLevel
 from transformers import Olmo2Config, Olmo2ForCausalLM
 from transformers.models.gpt2.tokenization_gpt2_fast import GPT2TokenizerFast
 from olmo.checkpoint import build_sharded_checkpointer
@@ -248,6 +249,8 @@ def _write_tokenizer(
         else:
             base_tokenizer = Tokenizer.from_pretrained(tokenizer_config["identifier"])
 
+    # the tokenizers we trained don't have decoders, so let's set one here
+    base_tokenizer.decoder = ByteLevel(add_prefix_space=True, trim_offsets=True, use_regex=True)
     eos_token_id = config.eos_token_id if config.eos_token_id is not None else base_tokenizer.get_vocab_size() - 1
     pad_token_id = config.pad_token_id if config.pad_token_id is not None else eos_token_id
 
