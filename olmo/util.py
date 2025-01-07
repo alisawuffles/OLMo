@@ -934,3 +934,8 @@ def ensure_dir(path: PathOrStr):
     if not path.is_dir():
         path.mkdir(parents=True)
     return path
+
+
+def read_json(path: PathOrStr) -> Dict[str, Any]:
+    with open(path, "r") as f:
+        return json.load(f)
