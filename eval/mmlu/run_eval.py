@@ -1,3 +1,14 @@
+"""
+------ Example prompt ------
+Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.
+A. 0
+B. 4
+C. 2
+D. 6
+
+Answer
+"""
+
 import click
 import pandas as pd
 import json

@@ -1,4 +1,15 @@
-"""Data downloaded from https://huggingface.co/datasets/allenai/openbookqa"""
+"""
+Data downloaded from https://huggingface.co/datasets/allenai/openbookqa
+
+------ Example prompt ------
+Princess Ellen wanted nothing more than to be a singer when she grew up. She had a beautiful voice and everyone who heard it said she was the best singer in the land. But her uncle believed singing would keep her from her job as princess, so he found a witch and paid her to steal Princess Ellen's voice. The witch made a spell which gave Ellen the witch's voice. The spell also gave Ellen's voice to the witch. The witch went on to become famous as a singer, and Ellen grew up to be Queen. One day Queen Ellen heard of a singer who was the best in the land. She went to hear this singer, and was surprised to hear her own voice coming from the woman on stage. When the show was over, Ellen found the singer and gave her a penny. Ellen told the singer, "You have a magical voice". The witch was so touched by Ellen's kindness, that she gave Ellen her voice back.
+
+Question: Who is the main character in the story?
+Answer: Princess Ellen
+
+Question: Who is the villain?
+Answer
+"""
 
 import click
 import pandas as pd
@@ -20,10 +31,10 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size):
             prompts.append(prompt)
 
             # parse answers
-            main_answer = row["answers"][i]["span_text"]
+            main_answer = row["answers"][i]["span_text"].rstrip(".,!?").capitalize()
             all_answers = [main_answer]
             for key in row["additional_answers"]:
-                all_answers.extend(row["additional_answers"][key][i]["span_text"])
+                all_answers.append(row["additional_answers"][key][i]["span_text"].rstrip(".,!?").capitalize())
             answers.append(all_answers)
 
             prompt += f": {main_answer}\n\n"
@@ -41,9 +52,10 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size):
 
     results = []
     for prompt, output, answers in zip(prompts, outputs, answers):
-        output = output.split("\n")[0]
+        output = output.split("\n")[0].rstrip(".,!?")
+        parsed_output = output.split(": ")[-1]
         results.append(
-            {"prompt": prompt, "output": output, "answer": answers, "correct": output.strip() in answers}
+            {"prompt": prompt, "output": output, "answer": answers, "correct": parsed_output.strip() in answers}
         )
 
     return results

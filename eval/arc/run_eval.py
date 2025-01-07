@@ -54,6 +54,7 @@ def evaluate_arc(model, tokenizer, test_df, batch_size):
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--eval_batch_size", type=int, default=32)
 @click.option("--add_bos_token", is_flag=True, default=False)
+@click.option("--challenge_set", is_flag=True, default=False)
 def main(
     model_name_or_path: str,
     step: int,
@@ -61,9 +62,13 @@ def main(
     max_num_examples: int,
     eval_batch_size: int,
     add_bos_token: bool,
+    challenge_set: bool,
 ):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, add_bos_token=add_bos_token)
-    test_df = pd.read_json("olmo_data/eval/arc-challenge/test.jsonl", lines=True)
+    if challenge_set:
+        test_df = pd.read_json("olmo_data/eval/arc-challenge/test.jsonl", lines=True)
+    else:
+        test_df = pd.read_json("olmo_data/eval/arc-easy/test.jsonl", lines=True)
 
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
