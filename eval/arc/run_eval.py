@@ -7,7 +7,7 @@ from eval.util import load_model_and_tokenizer, batched_generate
 from olmo.util import ensure_dir
 
 
-def evaluate_mmlu(model, tokenizer, test_df, batch_size):
+def evaluate_arc(model, tokenizer, test_df, batch_size):
     prompts = []
     for _, row in test_df.iterrows():
         prompt = row["question"].strip() + "\n"
@@ -28,7 +28,7 @@ def evaluate_mmlu(model, tokenizer, test_df, batch_size):
     )
 
     results = []
-    for prompt, output, answer, subject in zip(prompts, outputs, test_df.answer, test_df.subject):
+    for prompt, output, answer in zip(prompts, outputs, test_df["answerKey"]):
         output = output.split("\n")[0]
         if output.startswith(": ") and output[2] in "ABCD":
             parsed_answer = output[2]
@@ -36,12 +36,11 @@ def evaluate_mmlu(model, tokenizer, test_df, batch_size):
             parsed_answer = None
         results.append(
             {
-                "subject": subject,
                 "prompt": prompt,
                 "output": output,
-                "answer": "ABCD"[answer],
+                "answer": answer,
                 "valid": parsed_answer is not None,
-                "correct": parsed_answer == "ABCD"[answer],
+                "correct": parsed_answer == answer,
             }
         )
 
@@ -69,7 +68,7 @@ def main(
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_mmlu(model, tokenizer, test_df, eval_batch_size)
+    results = evaluate_arc(model, tokenizer, test_df, eval_batch_size)
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
         "num_examples": len(results),

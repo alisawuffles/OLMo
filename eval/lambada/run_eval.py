@@ -7,54 +7,62 @@ from eval.util import load_model_and_tokenizer, batched_generate
 from olmo.util import ensure_dir
 
 
-def evaluate_triviaqa(model, tokenizer, test_df, batch_size):
-    prompts = [f"Question: {question}\n\nAnswer" for question in test_df.question]
+def evaluate_lambada(model, tokenizer, test_df, batch_size):
+    prompts, continuations = [], []
+    for _, row in test_df.iterrows():
+        prompt, continuation = row["text"].rsplit(" ", 1)
+        prompts.append(prompt)
+        continuations.append(continuation)
+
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+
     outputs = batched_generate(
         prompts=prompts,
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
+
     results = []
-    for prompt, output, answers in zip(prompts, outputs, test_df.answer):
+    for prompt, output, continuation in zip(prompts, outputs, continuations):
         output = output.split("\n")[0]
-        answers = answers["aliases"]
+        parsed_output = output.lstrip().split(" ")[0].rstrip(".,!?")
         results.append(
             {
                 "prompt": prompt,
-                "output": output,
-                "answer": answers,
-                "correct": any(answer.lower() in output.lower() for answer in answers),
+                "output": parsed_output,
+                "continuation": continuation,
+                "correct": continuation == parsed_output,
             }
         )
+
     return results
 
 
 @click.command()
 @click.option("--model_name_or_path", type=str, default="pile-npt25k")
-@click.option("--output_dir", type=str)
 @click.option("--step", type=int, default=None)
+@click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--eval_batch_size", type=int, default=32)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,
-    output_dir: str,
     step: int,
+    output_dir: str,
     max_num_examples: int,
     eval_batch_size: int,
     add_bos_token: bool,
 ):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, add_bos_token=add_bos_token)
-    test_df = pd.read_json("olmo_data/eval/triviaqa/validation.jsonl", lines=True)
+    test_df = pd.read_json("olmo_data/eval/lambada/test.jsonl", lines=True)
 
     if max_num_examples:
-        test_df = test_df.sample(min(len(test_df), max_num_examples))
+        test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_triviaqa(model, tokenizer, test_df, batch_size=eval_batch_size)
+    results = evaluate_lambada(model, tokenizer, test_df, eval_batch_size)
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
         "num_examples": len(results),

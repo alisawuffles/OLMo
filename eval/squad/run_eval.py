@@ -11,6 +11,7 @@ def evaluate_squad(model, tokenizer, test_df, batch_size):
     prompts = [
         row["context"].strip() + "\n\nQuestion: " + row["question"] + "\nAnswer" for _, row in test_df.iterrows()
     ]
+    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,

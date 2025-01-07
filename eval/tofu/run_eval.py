@@ -9,6 +9,7 @@ from olmo.util import ensure_dir
 
 def evaluate_tofu(model, tokenizer, test_df, batch_size):
     prompts = [f"Question: {question}\nAnswer" for question in test_df.question]
+    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,

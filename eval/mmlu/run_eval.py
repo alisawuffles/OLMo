@@ -83,6 +83,7 @@ def main(
     results = evaluate_mmlu(model, tokenizer, test_df, eval_batch_size, token_healing)
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
+        "answer_valid": np.sum([r["valid"] for r in results]),
         "num_examples": len(results),
     }
     # print metrics

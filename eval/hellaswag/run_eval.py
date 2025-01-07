@@ -29,7 +29,7 @@ def evaluate_hellaswag(model, tokenizer, test_df, batch_size):
     )
 
     results = []
-    for prompt, output, endings, label in zip(prompts, outputs, test_df.endings, test_df.label):
+    for prompt, output, label in zip(prompts, outputs, test_df.label):
         output = output.split("\n")[0]
         if output.startswith(": ") and output[2] in "ABCD":
             parsed_answer = output[2]
