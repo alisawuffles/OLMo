@@ -36,7 +36,6 @@ from olmo.torch_util import (
     get_world_size,
     peak_gpu_memory,
     seed_all,
-    init_distributed_mode
 )
 from olmo.train import Trainer
 from olmo.util import (
@@ -365,7 +364,6 @@ if __name__ == "__main__":
     except RuntimeError as e:
         print(f"failed to set multiprocessing start method: {e}")
     log.info(f"Multiprocessing start method set to '{mp.get_start_method()}'")
-    init_distributed_mode()
 
     # Set CUDA device.
     torch.cuda.set_device(f"cuda:{get_local_rank()}")
