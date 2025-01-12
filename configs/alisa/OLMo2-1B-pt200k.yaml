@@ -1,4 +1,4 @@
-run_name: OLMo2-7B-pt200k
+run_name: OLMo2-1B-pt200k
 seed: 6198
 dry_run: false
 
@@ -8,10 +8,10 @@ wandb:
   project: pretokenization
 
 model:
-  d_model: 4096
-  n_heads: 32
-  n_layers: 32
-  mlp_hidden_size: 22016
+  d_model: 2048
+  n_heads: 16
+  n_layers: 16
+  mlp_ratio: 8
   weight_tying: false
   alibi: false
   rope: true
@@ -30,12 +30,13 @@ model:
   activation_type: swiglu
   residual_dropout: 0.0
   embedding_dropout: 0.0
-  max_sequence_length: 4096
+  max_sequence_length: 2048
   vocab_size: 200005
   embedding_size: 200064
   eos_token_id: 200004
   pad_token_id: 200001
-  init_device: meta
+  # init_device: meta
+  init_device: cuda
   init_fn: normal
   init_std: 0.02
   init_cutoff_factor: 3
@@ -44,11 +45,13 @@ softmax_auxiliary_loss: true
 auxiliary_loss_multiplier: 1e-5
 fused_loss: true
 
-compile: null
+compile:
+  fullgraph: false
+# compile: null  # causes instability on AMD GPUs
 
 optimizer:
   name: adamw
-  learning_rate: 3.0e-4
+  learning_rate: 4.0e-4
   weight_decay: 0.1
   eps: 1e-8
   decay_norm_and_bias: true
@@ -56,13 +59,12 @@ optimizer:
   betas:
   - 0.9
   - 0.95
-  metrics_log_interval: 1
+  metrics_log_interval: 10
 
 scheduler:
   name: cosine_with_warmup
   units: tokens
   t_warmup: 8388608000
-  # t_max: 5e12
   alpha_f: 0.1
   warmup_min_lr: 0.0
 
@@ -74,7 +76,7 @@ save_overwrite: false
 
 save_folder: /lustre/fsw/nvr_lacr_llm/aliliu/olmo/models/${run_name}
 save_interval: 1000
-# save_interval_ephemeral: 200
+save_interval_ephemeral: 500
 save_num_checkpoints_to_keep: -1
 sharded_checkpointer: olmo_core
 
@@ -83,15 +85,20 @@ save_num_unsharded_checkpoints_to_keep: -1
 
 load_path: null
 
-max_duration: 321e9T  # 2x compute optimal (7,298,617,344*22*2)
-global_train_batch_size: 1024
-device_train_microbatch_size: 2
+max_duration: 24000
+global_train_batch_size: 2048
+device_train_microbatch_size: 4
 
 precision: amp_bf16
 
-fsdp:
-  wrapping_strategy: by_block_and_size
-  precision: mixed
+# activation_checkpointing: one_in_four
+# fsdp:
+#   wrapping_strategy: null
+#   precision: mixed
+ddp:
+  grad_sync_mode: batch
+  find_unused_params: false
+distributed_strategy: ddp
 
 max_grad_norm: 1.0
 max_grad_norm_ratio: null
@@ -101,9 +108,10 @@ speed_monitor:
 
 gen1_gc_interval: 1
 
-eval_interval: 1000
+eval_interval: 24001
 eval_subset_num_batches: -1
 device_eval_batch_size: ${device_train_microbatch_size}
+evaluators: []
 
 data:
   pad_direction: right
