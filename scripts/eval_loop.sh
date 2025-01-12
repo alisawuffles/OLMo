@@ -1,21 +1,24 @@
-model_name=OLMo2-7B-pt200k
-# model_name=OLMo2-7B-npt200k
-# model_name=OLMo2-7B-npt200k-drop0.1
+# model_name=OLMo2-7B-pt200k
+model_name=OLMo2-7B-npt200k
 # model_name=OLMo2-7B-npt200k-drop0.1-noRspace
 echo "Model: $model_name"
 
-tasks=("arc_easy" "arc_challenge" "boolq" "bpb" "copa" "coqa" "drop" "hellaswag" "hotpotqa" "jeopardy" "lambada" "mmlu" "repeat_after_me" "squad" "tofu" "triviaqa" "wikidataqa" "winogrande")
+tasks=("arc_easy" "arc_challenge" "boolq" "copa" "coqa" "drop" "hellaswag" "hotpotqa" "jeopardy" "lambada" "mmlu" "squad" "tofu" "triviaqa" "wikidataqa" "winogrande")
+# "repeat_after_me" 
+# "bpb"
 
 # collect steps in a list
-steps=()
-for dir in $(ls models/hf_models/$model_name)
-do
-    step=$(echo $dir | sed 's/step//')
-    steps+=($step)
-done
+# steps=()
+# for dir in $(ls models/dolmino_shuffle/hf_models/$model_name)
+# do
+#     step=$(echo $dir | sed 's/step//')
+#     steps+=($step)
+# done
 
-# sort steps as integers
-steps=($(echo ${steps[@]} | tr ' ' '\n' | sort -n | tr '\n' ' '))
+# # sort steps as integers
+# steps=($(echo ${steps[@]} | tr ' ' '\n' | sort -n | tr '\n' ' '))
+
+steps=(42000)
 
 # loop over steps
 for step in ${steps[@]}
