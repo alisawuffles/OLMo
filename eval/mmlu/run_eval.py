@@ -1,43 +1,41 @@
-"""
------- Example prompt ------
-Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.
-A. 0
-B. 4
-C. 2
-D. 6
-
-Answer
-"""
-
 import click
 import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir
+from eval.util import (
+    load_model_and_tokenizer,
+    batched_generate,
+    format_example,
+    prep_incontext_examples,
+    parse_mc_pred,
+)
+from olmo.util import ensure_dir, seed_all
+
+seed_all(42)
 
 
-def evaluate_mmlu(model, tokenizer, test_df, batch_size, token_healing):
+def evaluate_mmlu(model, tokenizer, test_df, batch_size, num_incontext_examples):
+    test_df = test_df.reset_index(drop=True)
+    incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
+
     prompts = []
-    for _, row in test_df.iterrows():
-        prompt = row["question"].strip() + "\n"
-        for l, choice in zip("ABCD", row["choices"]):
-            prompt += f"{l}. {choice.lstrip()}\n"
-        prompt += "\nAnswer"
+    for i, row in test_df.iterrows():
+        prompt = ""
+        for j in incontext_indices[i]:
+            incontext_row = test_df.iloc[j]
+            prompt += (
+                format_example(
+                    incontext_row["question"].strip(),
+                    choices=incontext_row["choices"],
+                    answer="ABCD"[incontext_row["answer"]],
+                )
+                + "\n\n"
+            )
+        prompt += format_example(row["question"].strip(), choices=row["choices"])
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
-
-    # model.generation_config.update(token_healing=token_healing)
-    # if token_healing:  # hacky for now
-    #     model.generation_config.update(
-    #         sequence_bias={tokenizer.convert_tokens_to_ids(f": {l}"): 100.0 for l in "ABCD"}
-    #     )
-    # else:
-    #     model.generation_config.update(
-    #         sequence_bias={tokenizer.convert_tokens_to_ids(f" {l}"): 100.0 for l in "ABCD"}
-    #     )
 
     outputs = batched_generate(
         prompts=prompts,
@@ -51,17 +49,14 @@ def evaluate_mmlu(model, tokenizer, test_df, batch_size, token_healing):
     results = []
     for prompt, output, answer, subject in zip(prompts, outputs, test_df.answer, test_df.subject):
         output = output.split("\n")[0]
-        if output.startswith(": ") and output[2] in "ABCD":
-            parsed_answer = output[2]
-        else:
-            parsed_answer = None
+        parsed_pred = parse_mc_pred(output)
         results.append(
             {
                 "prompt": prompt,
                 "output": output,
                 "answer": "ABCD"[answer],
-                "valid": parsed_answer is not None,
-                "correct": parsed_answer == "ABCD"[answer],
+                "valid": parsed_pred is not None,
+                "correct": parsed_pred == "ABCD"[answer],
             }
         )
 
@@ -72,18 +67,18 @@ def evaluate_mmlu(model, tokenizer, test_df, batch_size, token_healing):
 @click.option("--model_name_or_path", type=str, default="pile-npt25k")
 @click.option("--step", type=int, default=None)
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
+@click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--eval_batch_size", type=int, default=32)
 @click.option("--add_bos_token", is_flag=True, default=False)
-@click.option("--token_healing", is_flag=True, default=False)
 def main(
     model_name_or_path: str,
     step: int,
     output_dir: str,
+    num_incontext_examples: int,
     max_num_examples: int,
     eval_batch_size: int,
     add_bos_token: bool,
-    token_healing: bool,
 ):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, add_bos_token=add_bos_token)
 
@@ -91,10 +86,10 @@ def main(
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_mmlu(model, tokenizer, test_df, eval_batch_size, token_healing)
+    results = evaluate_mmlu(model, tokenizer, test_df, eval_batch_size, num_incontext_examples)
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
-        "answer_valid": np.sum([r["valid"] for r in results]),
+        "valid_answer": np.mean([r["valid"] for r in results]),
         "num_examples": len(results),
     }
     # print metrics

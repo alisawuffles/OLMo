@@ -2,6 +2,39 @@ import os
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import HfApi
+import numpy as np
+
+
+def prep_incontext_examples(test_df, num_incontext_examples):
+    indices = np.arange(len(test_df))
+    incontext_indices = {
+        i: np.random.choice(indices[indices != i], size=num_incontext_examples, replace=False)
+        for i in tqdm(indices, desc="Precomputing in-context examples")
+    }
+    return incontext_indices
+
+
+def format_example(question, passage=None, choices=None, answer=None):
+    text = ""
+    if passage:
+        text += f"{passage.strip()}\n\n"
+
+    text += f"Question:\n{question.strip()}\n"
+
+    if choices:
+        for label, choice in zip("ABCD", choices):
+            text += f"{label}. {choice.strip()}\n"
+    text += "Answer:\n"
+    if answer:
+        text += answer.strip()
+    return text
+
+
+def parse_mc_pred(output):
+    parsed_answer = None
+    if output and output[0] in "ABCD":
+        parsed_answer = output[0]
+    return parsed_answer
 
 
 def get_checkpoints(model_name):

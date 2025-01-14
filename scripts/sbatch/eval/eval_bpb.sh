@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=nvr_lacr_llm
-#SBATCH --partition=interactive
+#SBATCH --partition=batch
 #SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name=nvr_lacr_llm-eval.bpb
@@ -12,7 +12,7 @@ date
 
 echo "Evaluating bits per byte with $model_name at step $step"
 python -m eval.eval_bpb \
-    --model_name_or_path models/dolmino_shuffle/hf_models/$model_name \
+    --model_name_or_path models/hf_models/$model_name \
     --max_num_examples 1000 \
     --max_context_length 512 \
     --eval_batch_size 8 \

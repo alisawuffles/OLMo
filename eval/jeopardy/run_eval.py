@@ -3,32 +3,25 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir
+from eval.util import load_model_and_tokenizer, batched_generate, format_example, prep_incontext_examples
+from olmo.util import ensure_dir, seed_all
 from tqdm import tqdm
 
-np.random.seed(42)
+seed_all(42)
 
 
 def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examples):
     test_df = test_df.reset_index(drop=True)
-    indices = np.arange(len(test_df))
-    incontext_indices = {
-        i: np.random.choice(indices[indices != i], size=num_incontext_examples, replace=False)
-        for i in tqdm(indices, desc="Precomputing in-context examples")
-    }
+    incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
     prompts = []
-    for i, row in tqdm(
-        test_df.iterrows(), desc=f"Constructing prompts with {num_incontext_examples} in-context examples"
-    ):
+    for i, row in tqdm(test_df.iterrows()):
         prompt = ""
         for j in incontext_indices[i]:
-            prompt += (
-                "Question: " + test_df.iloc[j][" Question"] + "\nAnswer: " + test_df.iloc[j][" Answer"] + "\n\n"
-            )
+            incontext_row = test_df.iloc[j]
+            prompt += format_example(incontext_row[" Question"], answer=incontext_row[" Answer"]) + "\n\n"
 
-        prompt += "Question: " + row[" Question"] + "\nAnswer"
+        prompt += format_example(row[" Question"])
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
@@ -54,8 +47,8 @@ def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examp
 @click.option("--model_name_or_path", type=str, default="pile-npt25k")
 @click.option("--step", type=int, default=None)
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
+@click.option("--num_incontext_examples", type=int, default=5)
 @click.option("--max_num_examples", type=int, default=10000)
-@click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--eval_batch_size", type=int, default=32)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
@@ -90,7 +83,8 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
-
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[0]["prompt"])
     pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 

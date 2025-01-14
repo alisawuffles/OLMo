@@ -4,8 +4,10 @@ import json
 import numpy as np
 from pathlib import Path
 from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir
+from olmo.util import ensure_dir, seed_all
 import string
+
+seed_all(42)
 
 
 def construct_test_data(tokenizer):
@@ -26,7 +28,7 @@ def construct_test_data(tokenizer):
     test_examples = []
     for token in multiword_tokens:
         words = token.split("Ġ")[1:]
-        prompt = f"Repeat after me: {(' '.join(words) + ', ')*100}{words[0]}"
+        prompt = f"Repeat after me: {(' '.join(words) + ', ') * 100}{words[0]}"
         answer = " " + " ".join(words[1:])
         test_examples.append({"prompt": prompt, "token": token, "answer": answer})
 

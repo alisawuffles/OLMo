@@ -5,22 +5,19 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir, read_json
+from eval.util import load_model_and_tokenizer, batched_generate, prep_incontext_examples
+from olmo.util import ensure_dir, read_json, seed_all
 from tqdm import tqdm
+
+seed_all(42)
 
 
 def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_examples):
     test_df = test_df.reset_index(drop=True)
-    indices = np.arange(len(test_df))
-    incontext_indices = {
-        i: np.random.choice(indices[indices != i], size=num_incontext_examples, replace=False)
-        for i in tqdm(indices, desc="Precomputing in-context examples")
-    }
+    incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
+
     prompts = []
-    for i, row in tqdm(
-        test_df.iterrows(), desc=f"Constructing prompts with {num_incontext_examples} in-context examples"
-    ):
+    for i, row in tqdm(test_df.iterrows()):
         prompt = ""
         for j in incontext_indices[i]:
             maybe_targets = test_df.iloc[j]["target"]
@@ -58,7 +55,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--output_dir", type=str)
 @click.option("--step", type=int, default=None)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--num_incontext_examples", type=int, default=1)
+@click.option("--num_incontext_examples", type=int, default=10)
 @click.option("--eval_batch_size", type=int, default=32)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
@@ -95,7 +92,8 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
-
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[0]["prompt"])
     pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 

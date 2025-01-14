@@ -4,7 +4,9 @@ import json
 import numpy as np
 from pathlib import Path
 from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir
+from olmo.util import ensure_dir, seed_all
+
+seed_all(42)
 
 
 def evaluate_lambada(model, tokenizer, test_df, batch_size):
@@ -79,7 +81,8 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
-
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[0]["prompt"])
     pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 

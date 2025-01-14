@@ -3,8 +3,10 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir, read_json
+from eval.util import load_model_and_tokenizer, batched_generate, format_example
+from olmo.util import ensure_dir, read_json, seed_all
+
+seed_all(42)
 
 
 def evaluate_hotpotqa(model, tokenizer, test_df, open_domain, full_passage):
@@ -15,16 +17,16 @@ def evaluate_hotpotqa(model, tokenizer, test_df, open_domain, full_passage):
         for title, sentence_id in row["supporting_facts"]:
             if open_domain:
                 if full_passage:
-                    prompt += "".join(contexts[title])
+                    context = "".join(contexts[title])
                 else:
                     try:
-                        prompt += contexts[title][sentence_id].strip()
+                        context = contexts[title][sentence_id].strip()
                     except IndexError:
                         continue
-                prompt += "\n\n"
-        prompt += f"Question: {row['question']}\nAnswer"
+        prompt = format_example(row["question"], passage=context)
         prompts.append(prompt)
 
+    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,

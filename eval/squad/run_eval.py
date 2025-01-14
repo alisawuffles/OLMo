@@ -3,14 +3,14 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir
+from eval.util import load_model_and_tokenizer, batched_generate, format_example
+from olmo.util import ensure_dir, seed_all
+
+seed_all(42)
 
 
 def evaluate_squad(model, tokenizer, test_df, batch_size):
-    prompts = [
-        row["context"].strip() + "\n\nQuestion: " + row["question"] + "\nAnswer" for _, row in test_df.iterrows()
-    ]
+    prompts = [format_example(row["question"], passage=row["context"]) for _, row in test_df.iterrows()]
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
@@ -75,7 +75,8 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
-
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[0]["prompt"])
     pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 

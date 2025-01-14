@@ -16,8 +16,10 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
-from olmo.util import ensure_dir, read_json
+from eval.util import load_model_and_tokenizer, batched_generate, format_example
+from olmo.util import ensure_dir, read_json, seed_all
+
+seed_all(42)
 
 
 def evaluate_coqa(model, tokenizer, test_df, batch_size):
@@ -26,18 +28,18 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size):
     for _, row in test_df.iterrows():
         prompt = row["story"].strip() + "\n\n"
         for i, question in enumerate(row["questions"]):
-            prompt += f"\nQuestion: {question['input_text']}"
-            prompt += "\nAnswer"
+            main_answer = row["answers"][i]["span_text"].rstrip(".,!?").capitalize()
+            prompt += format_example(question["input_text"].strip())
             prompts.append(prompt)
 
-            # parse answers
-            main_answer = row["answers"][i]["span_text"].rstrip(".,!?").capitalize()
-            all_answers = [main_answer]
-            for key in row["additional_answers"]:
-                all_answers.append(row["additional_answers"][key][i]["span_text"].rstrip(".,!?").capitalize())
-            answers.append(all_answers)
+            # add answer for the next example
+            prompt += main_answer + "\n\n"
 
-            prompt += f": {main_answer}\n\n"
+            # parse answers
+            answer_aliases = [main_answer]
+            for key in row["additional_answers"]:
+                answer_aliases.append(row["additional_answers"][key][i]["span_text"].rstrip(".,!?").capitalize())
+            answers.append(answer_aliases)
 
     print("--- Example prompts ---\n" + "\n----\n".join(prompts[:5]) + "\n----------------------")
 
@@ -53,9 +55,8 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size):
     results = []
     for prompt, output, answers in zip(prompts, outputs, answers):
         output = output.split("\n")[0].rstrip(".,!?")
-        parsed_output = output.split(": ")[-1]
         results.append(
-            {"prompt": prompt, "output": output, "answer": answers, "correct": parsed_output.strip() in answers}
+            {"prompt": prompt, "output": output, "answer": answers, "correct": output.strip() in answers}
         )
 
     return results
