@@ -25,14 +25,14 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
             incontext_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    incontext_row["question"].capitalize() + "? Answer with yes or no.",
+                    incontext_row["question"].capitalize() + "? Answer with Yes or No.",
                     passage=incontext_row["passage"],
-                    answer="Yes." if incontext_row["answer"] == 1 else "No.",
+                    answer="Yes" if incontext_row["answer"] == 1 else "No",
                 )
                 + "\n\n"
             )
 
-        prompt += format_example(row["question"].capitalize() + "? Answer with yes or no.", passage=row["passage"])
+        prompt += format_example(row["question"].capitalize() + "? Answer with Yes or No.", passage=row["passage"])
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
