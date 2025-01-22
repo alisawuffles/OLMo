@@ -18,14 +18,11 @@ def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_exam
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
-            choices = [incontext_row["ctx_b"].strip().capitalize() + " " + end for end in incontext_row["endings"]]
+            ic_row = test_df.iloc[j]
+            choices = [ic_row["ctx_b"].strip().capitalize() + " " + end for end in ic_row["endings"]]
             prompt += (
                 format_example(
-                    question,
-                    passage=incontext_row["ctx_a"].strip(),
-                    choices=choices,
-                    answer="ABCD"[incontext_row["label"]],
+                    question, passage=ic_row["ctx_a"].strip(), choices=choices, answer="ABCD"[ic_row["label"]]
                 )
                 + "\n\n"
             )
@@ -71,7 +68,7 @@ def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_exam
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=1)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

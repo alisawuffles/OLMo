@@ -22,12 +22,12 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
+            ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    incontext_row["question"].capitalize() + "? Answer with Yes or No.",
-                    passage=incontext_row["passage"],
-                    answer="Yes" if incontext_row["answer"] == 1 else "No",
+                    ic_row["question"].capitalize() + "? Answer with Yes or No.",
+                    passage=ic_row["passage"],
+                    answer="Yes" if ic_row["answer"] == 1 else "No",
                 )
                 + "\n\n"
             )
@@ -77,7 +77,7 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
 @click.option("--output_dir", type=str, default="results/boolq/olmo-20k")
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=5)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

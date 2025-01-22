@@ -18,8 +18,8 @@ def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examp
     for i, row in tqdm(test_df.iterrows()):
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
-            prompt += format_example(incontext_row[" Question"], answer=incontext_row[" Answer"]) + "\n\n"
+            ic_row = test_df.iloc[j]
+            prompt += format_example(ic_row[" Question"], answer=ic_row[" Answer"]) + "\n\n"
 
         prompt += format_example(row[" Question"])
         prompts.append(prompt)
@@ -49,7 +49,7 @@ def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examp
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--num_incontext_examples", type=int, default=5)
 @click.option("--max_num_examples", type=int, default=10000)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=128)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

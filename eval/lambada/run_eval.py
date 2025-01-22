@@ -3,18 +3,30 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate
+from eval.util import load_model_and_tokenizer, batched_generate, format_example, prep_incontext_examples
 from olmo.util import ensure_dir, seed_all
 
 seed_all(42)
 
 
-def evaluate_lambada(model, tokenizer, test_df, batch_size):
+def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_examples):
+    test_df = test_df.reset_index(drop=True)
+    incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
+
     prompts, continuations = [], []
-    for _, row in test_df.iterrows():
-        prompt, continuation = row["text"].rsplit(" ", 1)
+    for i, row in test_df.iterrows():
+        prompt = ""
+        for j in incontext_indices[i]:
+            ic_row = test_df.iloc[j]
+            context, next_word = ic_row["text"].rsplit(" ", 1)
+            question = f"What is the next word in the following passage?\n{context}..."
+            prompt += format_example(question=question, answer=next_word) + "\n\n"
+
+        context, next_word = row["text"].rsplit(" ", 1)
+        question = f"What is the next word in the following passage?\n{context}..."
+        prompt += format_example(question)
         prompts.append(prompt)
-        continuations.append(continuation)
+        continuations.append(next_word)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
 
@@ -47,13 +59,15 @@ def evaluate_lambada(model, tokenizer, test_df, batch_size):
 @click.option("--model_name_or_path", type=str, default="pile-npt25k")
 @click.option("--step", type=int, default=None)
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
+@click.option("--num_incontext_examples", type=int, default=5)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,
     step: int,
     output_dir: str,
+    num_incontext_examples: int,
     max_num_examples: int,
     eval_batch_size: int,
     add_bos_token: bool,
@@ -64,7 +78,7 @@ def main(
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_lambada(model, tokenizer, test_df, eval_batch_size)
+    results = evaluate_lambada(model, tokenizer, test_df, eval_batch_size, num_incontext_examples)
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
         "num_examples": len(results),

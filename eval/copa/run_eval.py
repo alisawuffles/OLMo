@@ -19,11 +19,11 @@ def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples)
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
+            ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    incontext_row["premise"].strip() + f" What was the {incontext_row['question']} of this?",
-                    choices=[incontext_row["choice1"], incontext_row["choice2"]],
+                    ic_row["premise"].strip() + f" What was the {ic_row['question']} of this?",
+                    choices=[ic_row["choice1"], ic_row["choice2"]],
                     answer="AB"[row["label"]],
                 )
                 + "\n\n"
@@ -72,7 +72,7 @@ def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples)
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=1)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=nvr_lacr_llm
-#SBATCH --partition=batch
+#SBATCH --partition=batch,interactive
 #SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name=nvr_lacr_llm-eval.coqa

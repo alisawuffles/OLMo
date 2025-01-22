@@ -25,12 +25,10 @@ def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_exa
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
+            ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    incontext_row["question_stem"],
-                    choices=incontext_row["choices"]["text"],
-                    answer=incontext_row["answerKey"],
+                    ic_row["question_stem"], choices=ic_row["choices"]["text"], answer=ic_row["answerKey"]
                 )
                 + "\n\n"
             )
@@ -71,7 +69,7 @@ def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

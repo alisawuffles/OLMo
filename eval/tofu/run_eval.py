@@ -17,8 +17,8 @@ def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples)
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
-            prompt += format_example(incontext_row["question"], answer=incontext_row["answer"]) + "\n\n"
+            ic_row = test_df.iloc[j]
+            prompt += format_example(ic_row["question"], answer=ic_row["answer"]) + "\n\n"
         prompt += format_example(row["question"])
         prompts.append(prompt)
 
@@ -50,7 +50,7 @@ def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples)
 @click.option("--output_dir", type=str, default="results/tofu/olmo-20k")
 @click.option("--num_incontext_examples", type=int, default=5)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=128)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

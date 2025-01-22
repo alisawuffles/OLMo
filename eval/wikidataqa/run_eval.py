@@ -56,7 +56,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--step", type=int, default=None)
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=10)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=128)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

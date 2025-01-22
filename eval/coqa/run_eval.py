@@ -85,8 +85,8 @@ def main(
 
     results = evaluate_coqa(model, tokenizer, test_df, batch_size=eval_batch_size)
     metrics = {
-        "accuracy": np.mean([r["correct"] for r in results]),
         "num_examples": len(results),
+        "accuracy": np.mean([r["correct"] for r in results]),
     }
     # print metrics
     for k, v in metrics.items():
@@ -100,7 +100,8 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
-
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[1]["prompt"])
     pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 

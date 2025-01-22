@@ -30,9 +30,9 @@ def format_example(question, passage=None, choices=None, answer=None):
     return text
 
 
-def parse_mc_pred(output):
+def parse_mc_pred(output, num_options=4):
     parsed_answer = None
-    if output and output[0] in "ABCD":
+    if output and output[0] in "ABCD"[:num_options]:
         parsed_answer = output[0]
     return parsed_answer
 
@@ -92,9 +92,15 @@ def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, st
     tokenizer_name_or_path = tokenizer_name_or_path or model_name_or_path
 
     print(f"Loading model from {model_name_or_path}")
+
+    # when model is too small, need to limit the number of visible devices
+    # for some reason the device mapping doesn't work for small models on lots of GPUs
+    if "1B" in model_name_or_path:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+
     model = AutoModelForCausalLM.from_pretrained(
         model_name_or_path,
-        device_map="balanced",
+        device_map="auto",
         revision=revision if "allenai" in model_name_or_path else None,
     )
     model.eval()

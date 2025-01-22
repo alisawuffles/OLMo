@@ -25,10 +25,10 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
-            question = incontext_row["sentence"].strip() + " What goes in the blank?\n"
-            options = [incontext_row["option1"], incontext_row["option2"]]
-            prompt += format_example(question, choices=options, answer="AB"[incontext_row["answer"] - 1]) + "\n\n"
+            ic_row = test_df.iloc[j]
+            question = ic_row["sentence"].strip() + " What goes in the blank?\n"
+            options = [ic_row["option1"], ic_row["option2"]]
+            prompt += format_example(question, choices=options, answer="AB"[ic_row["answer"] - 1]) + "\n\n"
 
         question = row["sentence"].strip() + " What goes in the blank?\n"
         options = [row["option1"], row["option2"]]
@@ -49,7 +49,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
     results = []
     for prompt, output, answer in zip(prompts, outputs, test_df["answer"]):
         output = output.split("\n")[0]
-        parsed_pred = parse_mc_pred(output)
+        parsed_pred = parse_mc_pred(output, num_options=2)
         results.append(
             {
                 "prompt": prompt,
@@ -69,7 +69,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=128)
 @click.option("--add_bos_token", is_flag=True, default=False)
 def main(
     model_name_or_path: str,

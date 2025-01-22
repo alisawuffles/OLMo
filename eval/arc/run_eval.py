@@ -23,12 +23,10 @@ def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples):
     for i, row in test_df.iterrows():
         prompt = ""
         for j in incontext_indices[i]:
-            incontext_row = test_df.iloc[j]
+            ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    incontext_row["question"].strip(),
-                    choices=incontext_row["choices"]["text"],
-                    answer=incontext_row["answerKey"],
+                    ic_row["question"].strip(), choices=ic_row["choices"]["text"], answer=ic_row["answerKey"]
                 )
                 + "\n\n"
             )
@@ -70,7 +68,7 @@ def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples):
 @click.option("--output_dir", type=str, default="results/squad/olmo-20k")
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=1)
-@click.option("--eval_batch_size", type=int, default=32)
+@click.option("--eval_batch_size", type=int, default=64)
 @click.option("--add_bos_token", is_flag=True, default=False)
 @click.option("--challenge_set", is_flag=True, default=False)
 def main(
