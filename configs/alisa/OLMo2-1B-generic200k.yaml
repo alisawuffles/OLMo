@@ -1,4 +1,4 @@
-run_name: ${oc.env:SLURM_JOB_NAME,OM2-1B-generic200k}
+run_name: ${oc.env:MODEL_NAME,OLMo2-1B-generic200k}
 seed: 6198
 dry_run: false
 
@@ -30,7 +30,7 @@ model:
   activation_type: swiglu
   residual_dropout: 0.0
   embedding_dropout: 0.0
-  max_sequence_length: 2048
+  max_sequence_length: ${oc.env:MAX_SEQUENCE_LENGTH,2048}
   vocab_size: 200005
   embedding_size: 200064
   eos_token_id: 200004
@@ -80,12 +80,12 @@ save_interval_ephemeral: 500
 save_num_checkpoints_to_keep: -1
 sharded_checkpointer: olmo_core
 
-save_interval_unsharded: null
+save_interval_unsharded: 1000
 save_num_unsharded_checkpoints_to_keep: -1
 
 load_path: null
 
-max_duration: 24000
+max_duration: ${oc.env:TRAIN_STEPS,24000}
 global_train_batch_size: 2048
 device_train_microbatch_size: 4
 
