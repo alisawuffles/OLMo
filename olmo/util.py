@@ -512,7 +512,7 @@ def _gcs_find_latest_checkpoint(bucket_name: str, prefix: str) -> Optional[str]:
             or (step == latest_step and latest_checkpoint is not None and latest_checkpoint.endswith("-unsharded"))
         ):
             latest_step = step
-            latest_checkpoint = f"gs://{bucket_name}/{blob.name[:-len(suffix)]}"
+            latest_checkpoint = f"gs://{bucket_name}/{blob.name[: -len(suffix)]}"
 
     return latest_checkpoint
 
@@ -705,12 +705,12 @@ def _http_get_bytes_range(scheme: str, host_name: str, path: str, bytes_start: i
     import requests
 
     response = requests.get(
-        f"{scheme}://{host_name}/{path}", headers={"Range": f"bytes={bytes_start}-{bytes_start+num_bytes-1}"}
+        f"{scheme}://{host_name}/{path}", headers={"Range": f"bytes={bytes_start}-{bytes_start + num_bytes - 1}"}
     )
     result = response.content
-    assert (
-        len(result) == num_bytes
-    ), f"expected {num_bytes} bytes, got {len(result)}"  # Some web servers silently ignore range requests and send everything
+    assert len(result) == num_bytes, (
+        f"expected {num_bytes} bytes, got {len(result)}"
+    )  # Some web servers silently ignore range requests and send everything
     return result
 
 
@@ -897,7 +897,7 @@ class WekaClient(SchemeClient):
 
     def get_bytes_range(self, index: int, length: int) -> bytes:
         response = self.s3.get_object(
-            Bucket=self.bucket_name, Key=self.path, Range=f"bytes={index}-{index+length-1}"
+            Bucket=self.bucket_name, Key=self.path, Range=f"bytes={index}-{index + length - 1}"
         )
         return response["Body"].read()
 
@@ -939,3 +939,13 @@ def ensure_dir(path: PathOrStr):
 def read_json(path: PathOrStr) -> Dict[str, Any]:
     with open(path, "r") as f:
         return json.load(f)
+
+
+def seed_all(seed: int):
+    import random
+    import numpy as np
+
+    if seed < 0 or seed > 2**32 - 1:
+        raise ValueError(f"Seed {seed} is invalid. It must be on [0; 2^32 - 1]")
+    random.seed(seed)
+    np.random.seed(seed)
