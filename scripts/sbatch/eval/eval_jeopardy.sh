@@ -10,7 +10,6 @@ cat $0
 echo "--------------------"
 date
 
-num_incontext_examples=5
 echo "Evaluating $model_name at step $step on Jeopardy"
 python -m eval.jeopardy.run_eval \
     --model_name_or_path models/hf_models/$model_name \
