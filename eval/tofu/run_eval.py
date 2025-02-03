@@ -22,7 +22,7 @@ def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples)
         prompt += format_example(row["question"])
         prompts.append(prompt)
 
-    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- TOFU example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,

@@ -3,6 +3,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import HfApi
 import numpy as np
+from pathlib import Path
+from olmo.util import ensure_dir
+import json
+import pandas as pd
 
 
 def prep_incontext_examples(test_df, num_incontext_examples):
@@ -19,12 +23,12 @@ def format_example(question, passage=None, choices=None, answer=None):
     if passage:
         text += f"{passage.strip()}\n\n"
 
-    text += f"Question:\n{question.strip()}\n"
+    text += f"Question: {question.strip()}\n"
 
     if choices:
         for label, choice in zip("ABCD", choices):
             text += f"{label}. {choice.strip()}\n"
-    text += "Answer:\n"
+    text += "Answer:"
     if answer:
         text += answer.strip()
     return text
@@ -118,3 +122,23 @@ def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, st
     tokenizer.padding_side = "left"
 
     return model, tokenizer
+
+
+def write_results(results, output_dir):
+    metrics = {
+        "accuracy": np.mean([r["correct"] for r in results]),
+        "num_examples": len(results),
+    }
+
+    if "valid" in results[0]:
+        metrics["valid_answer"] = np.mean([r["valid"] for r in results])
+
+    output_dir = Path(output_dir)
+    ensure_dir(output_dir)
+    print(f"Saving results to {output_dir}")
+
+    with open(output_dir / "metrics.json", "w") as fo:
+        json.dump(metrics, fo, indent=4)
+    with open(output_dir / "example_prompt.txt", "w") as fo:
+        fo.write(results[0]["prompt"])
+    pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)

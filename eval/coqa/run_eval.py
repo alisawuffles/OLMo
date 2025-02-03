@@ -22,7 +22,7 @@ from olmo.util import ensure_dir, read_json, seed_all
 seed_all(42)
 
 
-def evaluate_coqa(model, tokenizer, test_df, batch_size):
+def evaluate_coqa(model, tokenizer, test_df, batch_size, num_incontext_examples=None):
     prompts = []
     answers = []
     for _, row in test_df.iterrows():

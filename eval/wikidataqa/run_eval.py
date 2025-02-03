@@ -27,7 +27,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
         prompt += row["input"]
         prompts.append(prompt)
 
-    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- WikidataQA example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,

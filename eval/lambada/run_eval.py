@@ -28,7 +28,7 @@ def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_exampl
         prompts.append(prompt)
         continuations.append(next_word)
 
-    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- Lambada example prompt ---\n{prompts[0]}\n----------------------")
 
     outputs = batched_generate(
         prompts=prompts,

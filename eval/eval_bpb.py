@@ -2,24 +2,31 @@ import torch
 import torch.nn.functional as F
 import json
 import os
+import random
+import pandas as pd
 import click
 from tqdm import tqdm
 from pathlib import Path
+import regex as re
 from olmo.util import ensure_dir
-import random
 from eval.util import load_model_and_tokenizer
 
 random.seed(42)
+pretok_pattern = r"(?=(\\d{3})+(?!\\d))| ?\p{L}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"
 
 
 def get_bits_per_byte(model, tokenizer, eval_data, batch_size, max_context_length):
     total_accuracy = 0
-    total_reciprocal_rank = 0
+    total_first_word_correct = 0
+    total_label_pred_has_first_word = 0
+    total_first_byte_correct = 0
     total_loss = 0
     total_tokens = 0
     total_bytes = 0
+
+    examples = []
     for i in tqdm(range(0, len(eval_data), batch_size)):
-        batch_texts = [item["text"] for item in eval_data[i : i + batch_size]]
+        batch_texts = eval_data[i : i + batch_size]
         inputs = tokenizer(
             batch_texts,
             return_tensors="pt",
@@ -38,32 +45,50 @@ def get_bits_per_byte(model, tokenizer, eval_data, batch_size, max_context_lengt
             shift_labels = labels[..., 1:].contiguous()
             shift_attention_mask = inputs.attention_mask[..., :-1].contiguous()
 
-            # calculate accuracy
+            # first word correct: whether the first whitespace-delimited word of the prediction matches the ground truth
+            # first byte correct: whether the first char of the prediction matches the ground truth
             predictions = shift_logits.argmax(dim=-1)
-            correct = (predictions == shift_labels).float() * shift_attention_mask
-            total_accuracy = correct.sum()
+            # decode predictions and shift_labels to see if the strings match
+            for pred_seq, label_seq in zip(predictions.tolist(), shift_labels.tolist()):
+                for pred_token_id, label_token_id in zip(pred_seq, label_seq):  # iterate over tokens
+                    if label_token_id == tokenizer.pad_token_id:
+                        continue
 
-            # calculate mean reciprocal rank
-            ranks = torch.argsort(shift_logits, dim=-1, descending=True)
-            masked_ranks = (ranks == shift_labels.unsqueeze(-1)).nonzero()[..., -1].view(
-                shift_attention_mask.shape
-            ) * shift_attention_mask  # mask out padding
+                    ex = {"first_byte_correct": False, "first_word_correct": False}
+                    pred_token = tokenizer.decode([pred_token_id])
+                    label_token = tokenizer.decode([label_token_id])
 
-            reciprocal_ranks = torch.where(
-                shift_attention_mask > 0,  # Apply mask condition
-                1.0 / masked_ranks.float(),  # Compute reciprocal for valid entries
-                torch.zeros_like(masked_ranks.float()),  # Set invalid positions to 0
-            )
+                    # compare first char
+                    if pred_token[0] == label_token[0]:
+                        total_first_byte_correct += 1
+                        ex["first_byte_correct"] = True
 
-            total_reciprocal_rank += reciprocal_ranks.sum()
+                    # use regex to split into subwords
+                    pred_subwords = [match.group() for match in re.finditer(pretok_pattern, pred_token)]
+                    label_subwords = [match.group() for match in re.finditer(pretok_pattern, label_token)]
+                    ex["pred"] = pred_token
+                    ex["label"] = label_token
 
-            # get neg log likelihood
-            loss = (
-                F.cross_entropy(shift_logits.transpose(1, 2), shift_labels, reduction="none")
-                * shift_attention_mask
-            )
-            total_loss += loss.sum()
-            total_tokens += shift_attention_mask.sum()
+                    pred_first_subword = pred_subwords[0] if pred_subwords else None
+                    label_first_subword = label_subwords[0] if label_subwords else None
+                    ex["pred_first_subword"] = pred_first_subword
+                    ex["label_first_subword"] = label_first_subword
+
+                    # if both have first subword, check if they match
+                    if pred_first_subword and label_first_subword:
+                        total_label_pred_has_first_word += 1
+                        if pred_first_subword == label_first_subword:
+                            total_first_word_correct += 1
+                            ex["first_word_correct"] = True
+                    examples.append(ex.copy())
+
+        correct = (predictions == shift_labels).float() * shift_attention_mask
+        total_accuracy += correct.sum()
+
+        # get neg log likelihood
+        loss = F.cross_entropy(shift_logits.transpose(1, 2), shift_labels, reduction="none") * shift_attention_mask
+        total_loss += loss.sum()
+        total_tokens += shift_attention_mask.sum()
 
         total_bytes += sum(
             len(text) for text in tokenizer.batch_decode(inputs.input_ids, skip_special_tokens=True)
@@ -71,17 +96,20 @@ def get_bits_per_byte(model, tokenizer, eval_data, batch_size, max_context_lengt
 
     bits_per_byte = total_loss / total_bytes / torch.log(torch.tensor(2.0))
     accuracy = total_accuracy / total_tokens
-    # mrr = total_reciprocal_rank / total_tokens
-
-    return {
+    first_word_correct = total_first_word_correct / total_label_pred_has_first_word
+    first_byte_correct = total_first_byte_correct / total_tokens
+    metrics = {
         "bits_per_byte": bits_per_byte.item(),
         "accuracy": accuracy.item(),
-        # "mean_reciprocal_rank": mrr.item(),
+        "first_word_correct": first_word_correct,
+        "first_byte_correct": first_byte_correct.item(),
         "total_tokens": total_tokens.item(),
         "total_bytes": total_bytes,
         "num_examples": len(eval_data),
         "max_context_length": max_context_length,
     }
+
+    return metrics, examples
 
 
 @click.command()
@@ -92,7 +120,7 @@ def get_bits_per_byte(model, tokenizer, eval_data, batch_size, max_context_lengt
     "--eval_dir",
     type=str,
     help="Path to folder with jsonl files",
-    default="olmo_data/dolmino_shuffle/eval",
+    default="olmo_data/olmo2_shuffle/olmo2_shuffle",
 )
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--eval_batch_size", type=int, default=8)
@@ -115,16 +143,16 @@ def main(
     # read .jsonl files from eval_dir until we have max_num_examples
     eval_data = []
     for eval_file in os.listdir(eval_dir):
-        with open(os.path.join(eval_dir, eval_file), "r", encoding="utf-8") as file:
-            for line in file:
-                eval_data.append(json.loads(line))
-            if max_num_examples and len(eval_data) >= max_num_examples:
-                break
+        nrows = max_num_examples - len(eval_data)
+        df = pd.read_json(os.path.join(eval_dir, eval_file), lines=True, compression="zstd", nrows=nrows)
+        eval_data.extend(df.text.tolist())
+        if len(eval_data) >= max_num_examples:
+            break
 
     eval_data = random.sample(eval_data, max_num_examples)
     print(f"Loaded {len(eval_data)} examples.")
 
-    metrics = get_bits_per_byte(
+    metrics, examples = get_bits_per_byte(
         model, tokenizer, eval_data=eval_data, batch_size=eval_batch_size, max_context_length=max_context_length
     )
 
@@ -140,6 +168,7 @@ def main(
 
     with open(output_dir / "metrics.json", "w") as fo:
         json.dump(metrics, fo, indent=4)
+    pd.DataFrame(examples).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
 
 
 if __name__ == "__main__":

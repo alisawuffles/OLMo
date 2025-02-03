@@ -35,7 +35,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
         prompt += format_example(question, choices=options)
         prompts.append(prompt)
 
-    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- Winogrande example prompt ---\n{prompts[0]}\n----------------------")
 
     outputs = batched_generate(
         prompts=prompts,

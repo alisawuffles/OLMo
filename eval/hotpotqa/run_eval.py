@@ -9,7 +9,9 @@ from olmo.util import ensure_dir, read_json, seed_all
 seed_all(42)
 
 
-def evaluate_hotpotqa(model, tokenizer, test_df, with_passage, full_passage, num_incontext_examples):
+def evaluate_hotpotqa(
+    model, tokenizer, test_df, batch_size, num_incontext_examples, with_passage=True, full_passage=True
+):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -36,14 +38,14 @@ def evaluate_hotpotqa(model, tokenizer, test_df, with_passage, full_passage, num
         prompt += format_example(row["question"], passage=context)
         prompts.append(prompt)
 
-    print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- HotpotQA example prompt ---\n{prompts[0]}\n----------------------")
     outputs = batched_generate(
         prompts=prompts,
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
         max_new_tokens=20,
-        batch_size=32,
+        batch_size=batch_size,
     )
 
     results = []

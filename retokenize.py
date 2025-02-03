@@ -14,9 +14,9 @@ from tokenizers import Tokenizer
 from transformers import AutoTokenizer
 from olmo.util import ensure_dir
 
-SOURCE_FILE = Path(sys.argv[1])
-DEST_FILE = Path(sys.argv[2])
-print(f"{SOURCE_FILE} -> {DEST_FILE}")
+SOURCE_DIR = Path(sys.argv[1])
+DEST_DIR = Path(sys.argv[2])
+tokenizer_file = sys.argv[3]
 
 input_dtype = np.uint32
 output_dtype = np.uint32
@@ -43,24 +43,6 @@ def get_file_len(f):
     out = f.tell()
     f.seek(cur)
     return out
-
-
-print("Checking target object")
-ensure_dir(os.path.dirname(DEST_FILE))
-if DEST_FILE.exists():
-    print("Target object already exists!")
-    sys.exit()
-
-print("Loading tokenizer...")
-olmo_tokenizer = AutoTokenizer.from_pretrained("allenai/OLMo-2-1124-7B")
-tokenizer_file = sys.argv[3]
-print(f"tokenizer: {tokenizer_file}")
-tokenizer = Tokenizer.from_file(tokenizer_file)
-
-vsize = tokenizer.get_vocab_size()
-print(f"Vocab size: {vsize}")
-
-data = np.memmap(SOURCE_FILE, dtype=input_dtype)
 
 
 def split_on_eos(data, progress=True):
@@ -132,14 +114,46 @@ def incremental_retokenize_parallel(data, fout, progress=True):
     return total_bytes
 
 
-print("Retokenizing file...")
-with open(DEST_FILE, "wb") as fout:
-    total_bytes = incremental_retokenize_parallel(data, fout)
-    out_bytes = get_file_len(fout)
-    out_tokens = int(out_bytes / output_dtype().nbytes)
+for i, file in enumerate(os.listdir(SOURCE_DIR)):
+    SOURCE_FILE = SOURCE_DIR / file
+    DEST_FILE = DEST_DIR / file
 
-print(f"input tokens    : {len(data)}")
-print(f"total bytes     : {total_bytes}")
-print(f"output tokens   : {out_tokens}")
-print(f"bytes per token : {total_bytes / out_tokens}")
-print("Done!")
+    print(f"{SOURCE_FILE} -> {DEST_FILE}")
+    print("Checking target object")
+    ensure_dir(os.path.dirname(DEST_FILE))
+    if DEST_FILE.exists():
+        print("Target object already exists!")
+        continue
+
+    print("Loading tokenizer...")
+    olmo_tokenizer = AutoTokenizer.from_pretrained("allenai/OLMo-2-1124-7B")
+    print(f"tokenizer: {tokenizer_file}")
+    tokenizer = Tokenizer.from_file(tokenizer_file)
+
+    vsize = tokenizer.get_vocab_size()
+    print(f"Vocab size: {vsize}")
+
+    data = np.memmap(SOURCE_FILE, dtype=input_dtype)
+
+    print("Retokenizing file...")
+    with open(DEST_FILE, "wb") as fout:
+        total_bytes = incremental_retokenize_parallel(data, fout)
+        out_bytes = get_file_len(fout)
+        out_tokens = int(out_bytes / output_dtype().nbytes)
+
+    print(f"input tokens    : {len(data)}")
+    print(f"total bytes     : {total_bytes}")
+    print(f"output tokens   : {out_tokens}")
+    print(f"bytes per token : {total_bytes / out_tokens}")
+    print("Done!")
+
+    # create fake slurm output for each file so we can use the same parsing code
+    job_id = os.environ.get("SLURM_JOB_ID")
+    with open(f"slurm/retokenize/{job_id}_{i}.out", "w") as f:
+        f.write(f"{SOURCE_FILE} -> {DEST_FILE}\n")
+        f.write(f"tokenizer: {tokenizer_file}\n")
+        f.write(f"input tokens    : {len(data)}\n")
+        f.write(f"total bytes     : {total_bytes}\n")
+        f.write(f"output tokens   : {out_tokens}\n")
+        f.write(f"bytes per token : {total_bytes / out_tokens}\n")
+        f.write("Done!\n")
