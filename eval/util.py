@@ -30,7 +30,7 @@ def format_example(question, passage=None, choices=None, answer=None):
             text += f"{label}. {choice.strip()}\n"
     text += "Answer:"
     if answer:
-        text += answer.strip()
+        text += " " + answer.strip()
     return text
 
 
