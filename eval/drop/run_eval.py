@@ -9,7 +9,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_drop(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_drop(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -20,11 +20,14 @@ def evaluate_drop(model, tokenizer, test_df, batch_size, num_incontext_examples)
             ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    ic_row["question"], passage=ic_row["passage"], answer=ic_row["answers_spans"]["spans"][0]
+                    ic_row["question"],
+                    passage=ic_row["passage"],
+                    answer=ic_row["answers_spans"]["spans"][0],
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
-        prompt += format_example(row["question"], passage=row["passage"])
+        prompt += format_example(row["question"], passage=row["passage"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")

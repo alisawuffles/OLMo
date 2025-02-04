@@ -18,24 +18,35 @@ def prep_incontext_examples(test_df, num_incontext_examples):
     return incontext_indices
 
 
-def format_example(question, passage=None, choices=None, answer=None):
+def format_example(question, passage=None, choices=None, answer=None, qa_format="qnan"):
+    """Options for QA format:
+    qa: Question: {question}\nAnswer: {answer}
+    qnan: Question:\n{question}\nAnswer:\n{answer}
+    q: Question: {question} (only affects final example)
+    """
     text = ""
     if passage:
         text += f"{passage.strip()}\n\n"
 
-    text += f"Question: {question.strip()}\n"
+    text += "Question:\n" if qa_format == "qnan" else "Question: "
+    text += question.strip() + "\n"
 
     if choices:
         for label, choice in zip("ABCD", choices):
             text += f"{label}. {choice.strip()}\n"
-    text += "Answer:"
+
+    if answer or qa_format != "q":
+        text += "Answer:\n" if qa_format == "qnan" else "Answer: "
     if answer:
-        text += " " + answer.strip()
+        text += answer.strip()
+
     return text
 
 
 def parse_mc_pred(output, num_options=4):
     parsed_answer = None
+    output = output.replace("Answer:", " ")  # account for qa_format = "q"
+    output = output.strip()
     if output and output[0] in "ABCD"[:num_options]:
         parsed_answer = output[0]
     return parsed_answer

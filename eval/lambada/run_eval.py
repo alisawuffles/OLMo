@@ -9,7 +9,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -19,12 +19,18 @@ def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_exampl
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
             context, next_word = ic_row["text"].rsplit(" ", 1)
-            question = f"What is the next word in the following passage?\n{context}..."
-            prompt += format_example(question=question, answer=next_word) + "\n\n"
+            if qa_format == "cont":
+                prompt += f"{context} {next_word}\n\n"
+            else:
+                question = f"What is the next word in the following passage?\n{context}..."
+                prompt += format_example(question=question, answer=next_word, qa_format=qa_format) + "\n\n"
 
         context, next_word = row["text"].rsplit(" ", 1)
-        question = f"What is the next word in the following passage?\n{context}..."
-        prompt += format_example(question)
+        if qa_format == "cont":
+            prompt += f"{context}"
+        else:
+            question = f"What is the next word in the following passage?\n{context}..."
+            prompt += format_example(question, qa_format=qa_format)
         prompts.append(prompt)
         continuations.append(next_word)
 

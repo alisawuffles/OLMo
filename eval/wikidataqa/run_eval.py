@@ -12,7 +12,7 @@ from tqdm import tqdm
 seed_all(42)
 
 
-def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="cont"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -33,7 +33,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=5,
+        max_new_tokens=20,
         batch_size=batch_size,
     )
     results = []

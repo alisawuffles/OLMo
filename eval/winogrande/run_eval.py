@@ -17,7 +17,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -28,11 +28,14 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
             ic_row = test_df.iloc[j]
             question = ic_row["sentence"].strip() + " What goes in the blank?\n"
             options = [ic_row["option1"], ic_row["option2"]]
-            prompt += format_example(question, choices=options, answer="AB"[ic_row["answer"] - 1]) + "\n\n"
+            prompt += (
+                format_example(question, choices=options, answer="AB"[ic_row["answer"] - 1], qa_format=qa_format)
+                + "\n\n"
+            )
 
         question = row["sentence"].strip() + " What goes in the blank?\n"
         options = [row["option1"], row["option2"]]
-        prompt += format_example(question, choices=options)
+        prompt += format_example(question, choices=options, qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- Winogrande example prompt ---\n{prompts[0]}\n----------------------")
@@ -42,7 +45,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 

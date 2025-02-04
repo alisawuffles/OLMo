@@ -10,7 +10,7 @@ from tqdm import tqdm
 seed_all(42)
 
 
-def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -19,9 +19,9 @@ def evaluate_jeopardy(model, tokenizer, test_df, batch_size, num_incontext_examp
         prompt = ""
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
-            prompt += format_example(ic_row[" Question"], answer=ic_row[" Answer"]) + "\n\n"
+            prompt += format_example(ic_row[" Question"], answer=ic_row[" Answer"], qa_format=qa_format) + "\n\n"
 
-        prompt += format_example(row[" Question"])
+        prompt += format_example(row[" Question"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- Jeopardy example prompt ---\n{prompts[0]}\n----------------------")

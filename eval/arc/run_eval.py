@@ -15,7 +15,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -26,12 +26,15 @@ def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples):
             ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    ic_row["question"].strip(), choices=ic_row["choices"]["text"], answer=ic_row["answerKey"]
+                    ic_row["question"].strip(),
+                    choices=ic_row["choices"]["text"],
+                    answer=ic_row["answerKey"],
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
 
-        prompt += format_example(row["question"].strip(), choices=row["choices"]["text"])
+        prompt += format_example(row["question"].strip(), choices=row["choices"]["text"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
@@ -41,13 +44,13 @@ def evaluate_arc(model, tokenizer, test_df, batch_size, num_incontext_examples):
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 
     results = []
     for prompt, output, answer in zip(prompts, outputs, test_df["answerKey"]):
-        output = output.split("\n")[0]
+        output = output.split("\n\n")[0]
         parsed_pred = parse_mc_pred(output)
         results.append(
             {

@@ -10,7 +10,7 @@ seed_all(42)
 
 
 def evaluate_hotpotqa(
-    model, tokenizer, test_df, batch_size, num_incontext_examples, with_passage=True, full_passage=True
+    model, tokenizer, test_df, batch_size, num_incontext_examples, with_passage, full_passage, qa_format="qnan"
 ):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
@@ -32,10 +32,22 @@ def evaluate_hotpotqa(
             ic_row = test_df.iloc[j]
             contexts_dict = {k: v for k, v in ic_row["context"]}
             context = get_hotpotqa_context(ic_row, contexts_dict)
-            prompt += format_example(ic_row["question"], passage=context, answer=ic_row["answer"]) + "\n\n"
+            prompt += (
+                format_example(
+                    ic_row["question"],
+                    passage=context,
+                    answer=ic_row["answer"],
+                    qa_format=qa_format,
+                )
+                + "\n\n"
+            )
         contexts_dict = {k: v for k, v in row["context"]}
         context = get_hotpotqa_context(row, contexts_dict)
-        prompt += format_example(row["question"], passage=context)
+        prompt += format_example(
+            row["question"],
+            passage=context,
+            qa_format=qa_format,
+        )
         prompts.append(prompt)
 
     print(f"--- HotpotQA example prompt ---\n{prompts[0]}\n----------------------")

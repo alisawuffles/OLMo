@@ -16,13 +16,16 @@ done
 # sort steps as integers in reverse order
 steps=($(echo ${steps[@]} | tr ' ' '\n' | sort -nr | tr '\n' ' '))
 
+# take only first element
+steps=(${steps[0]})
+
 # set number of in-context examples
 num_incontext_examples=5
 
 for step in ${steps[@]}
 do
-    if [ ! -d results/winogrande-ice5/$model_name/$step ]; then    
-        id=$(sbatch --parsable --export=all,model_name=$model_name,step=$step scripts/sbatch/eval/eval_all.sh)
-        echo "$step: Submitted batch job $id"
-    fi
+    # if [ ! -d results/winogrande-q-ice5/$model_name/$step ]; then    
+    id=$(sbatch --parsable --export=all,model_name=$model_name,step=$step scripts/sbatch/eval/eval_all.sh)
+    echo "$step: Submitted batch job $id"
+    # fi
 done

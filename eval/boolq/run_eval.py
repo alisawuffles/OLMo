@@ -14,7 +14,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -28,11 +28,16 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
                     ic_row["question"].capitalize() + "? Answer with Yes or No.",
                     passage=ic_row["passage"],
                     answer="Yes" if ic_row["answer"] == 1 else "No",
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
 
-        prompt += format_example(row["question"].capitalize() + "? Answer with Yes or No.", passage=row["passage"])
+        prompt += format_example(
+            row["question"].capitalize() + "? Answer with Yes or No.",
+            passage=row["passage"],
+            qa_format=qa_format,
+        )
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
@@ -42,11 +47,14 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 
     def parse_pred(output):
+        if qa_format == "q":  # in this format, model is expected to generate "Answer:"
+            output = output.replace("Answer:", "")
+        output = output.strip()
         if output.startswith("Yes"):
             return "Yes"
         elif output.startswith("No"):

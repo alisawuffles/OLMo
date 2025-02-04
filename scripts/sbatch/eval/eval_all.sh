@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=nvr_lacr_llm
-#SBATCH --partition=batch,interactive
+#SBATCH --partition=interactive
 #SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name=nvr_lacr_llm-eval.all
@@ -13,4 +13,5 @@ date
 echo "Evaluating $model_name at step $step on all tasks"
 python -m eval.eval_all \
     --model_name_or_path models/hf_models/$model_name \
-    ${step:+--step "$step"}
+    ${step:+--step "$step"} \
+    ${overwrite:+--overwrite}

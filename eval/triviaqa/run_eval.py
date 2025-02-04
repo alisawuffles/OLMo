@@ -9,7 +9,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_triviaqa(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_triviaqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
     prompts = []
@@ -17,9 +17,12 @@ def evaluate_triviaqa(model, tokenizer, test_df, batch_size, num_incontext_examp
         prompt = ""
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
-            prompt += format_example(ic_row["question"], answer=ic_row["answer"]["aliases"][0]) + "\n\n"
+            prompt += (
+                format_example(ic_row["question"], answer=ic_row["answer"]["aliases"][0], qa_format=qa_format)
+                + "\n\n"
+            )
 
-        prompt += format_example(row["question"])
+        prompt += format_example(row["question"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- TriviaQA example prompt ---\n{prompts[0]}\n----------------------")

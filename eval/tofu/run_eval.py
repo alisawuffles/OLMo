@@ -9,7 +9,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -18,8 +18,8 @@ def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples)
         prompt = ""
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
-            prompt += format_example(ic_row["question"], answer=ic_row["answer"]) + "\n\n"
-        prompt += format_example(row["question"])
+            prompt += format_example(ic_row["question"], answer=ic_row["answer"], qa_format=qa_format) + "\n\n"
+        prompt += format_example(row["question"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- TOFU example prompt ---\n{prompts[0]}\n----------------------")
@@ -28,7 +28,8 @@ def evaluate_tofu(model, tokenizer, test_df, batch_size, num_incontext_examples)
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=batch_size,
+        max_new_tokens=20,
+        batch_size=batch_size,
     )
     results = []
     for prompt, output, answer in zip(prompts, outputs, test_df.answer):

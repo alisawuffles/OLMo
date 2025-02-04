@@ -9,7 +9,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_squad(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_squad(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -19,10 +19,15 @@ def evaluate_squad(model, tokenizer, test_df, batch_size, num_incontext_examples
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
             prompt += (
-                format_example(ic_row["question"], passage=ic_row["context"], answer=ic_row["answers"]["text"][0])
+                format_example(
+                    ic_row["question"],
+                    passage=ic_row["context"],
+                    answer=ic_row["answers"]["text"][0],
+                    qa_format=qa_format,
+                )
                 + "\n\n"
             )
-        prompt += format_example(row["question"], passage=row["context"])
+        prompt += format_example(row["question"], passage=row["context"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- SQuAD example prompt ---\n{prompts[0]}\n----------------------")

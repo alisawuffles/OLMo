@@ -17,7 +17,7 @@ from olmo.util import ensure_dir, seed_all
 seed_all(42)
 
 
-def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -28,11 +28,14 @@ def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_exa
             ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    ic_row["question_stem"], choices=ic_row["choices"]["text"], answer=ic_row["answerKey"]
+                    ic_row["question_stem"],
+                    choices=ic_row["choices"]["text"],
+                    answer=ic_row["answerKey"],
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
-        prompt += format_example(row["question_stem"], choices=row["choices"]["text"])
+        prompt += format_example(row["question_stem"], choices=row["choices"]["text"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- OpenbookQA example prompt ---\n{prompts[0]}\n----------------------")
@@ -42,7 +45,7 @@ def evaluate_openbookqa(model, tokenizer, test_df, batch_size, num_incontext_exa
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 

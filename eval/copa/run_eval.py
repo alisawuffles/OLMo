@@ -5,13 +5,19 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate, format_example, prep_incontext_examples
+from eval.util import (
+    load_model_and_tokenizer,
+    batched_generate,
+    format_example,
+    prep_incontext_examples,
+    parse_mc_pred,
+)
 from olmo.util import ensure_dir, seed_all
 
 seed_all(42)
 
 
-def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -25,6 +31,7 @@ def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples)
                     ic_row["premise"].strip() + f" What was the {ic_row['question']} of this?",
                     choices=[ic_row["choice1"], ic_row["choice2"]],
                     answer="AB"[row["label"]],
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
@@ -32,6 +39,7 @@ def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples)
         prompt += format_example(
             row["premise"].strip() + f" What was the {row['question']} of this?",
             choices=[row["choice1"], row["choice2"]],
+            qa_format=qa_format,
         )
         prompts.append(prompt)
 
@@ -42,17 +50,14 @@ def evaluate_copa(model, tokenizer, test_df, batch_size, num_incontext_examples)
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=20,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 
     results = []
     for prompt, output, label in zip(prompts, outputs, test_df.label):
         output = output.split("\n")[0]
-        if output and output[0] in "AB":
-            parsed_answer = output[0]
-        else:
-            parsed_answer = None
+        parsed_answer = parse_mc_pred(output, num_options=2)
         results.append(
             {
                 "prompt": prompt,

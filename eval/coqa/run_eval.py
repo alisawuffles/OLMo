@@ -22,14 +22,14 @@ from olmo.util import ensure_dir, read_json, seed_all
 seed_all(42)
 
 
-def evaluate_coqa(model, tokenizer, test_df, batch_size, num_incontext_examples=None):
+def evaluate_coqa(model, tokenizer, test_df, batch_size, qa_format="qnan"):
     prompts = []
     answers = []
     for _, row in test_df.iterrows():
         prompt = row["story"].strip() + "\n\n"
         for i, question in enumerate(row["questions"]):
             main_answer = row["answers"][i]["span_text"].rstrip(".,!?").capitalize()
-            prompt += format_example(question["input_text"].strip())
+            prompt += format_example(question["input_text"].strip(), qa_format=qa_format)
             prompts.append(prompt)
 
             # add answer for the next example

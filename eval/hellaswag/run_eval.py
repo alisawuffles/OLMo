@@ -3,13 +3,19 @@ import pandas as pd
 import json
 import numpy as np
 from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate, format_example, prep_incontext_examples
+from eval.util import (
+    load_model_and_tokenizer,
+    batched_generate,
+    format_example,
+    prep_incontext_examples,
+    parse_mc_pred,
+)
 from olmo.util import ensure_dir, seed_all
 
 seed_all(42)
 
 
-def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_examples):
+def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     question = "What is the best continuation?"
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
@@ -22,13 +28,17 @@ def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_exam
             choices = [ic_row["ctx_b"].strip().capitalize() + " " + end for end in ic_row["endings"]]
             prompt += (
                 format_example(
-                    question, passage=ic_row["ctx_a"].strip(), choices=choices, answer="ABCD"[ic_row["label"]]
+                    question,
+                    passage=ic_row["ctx_a"].strip(),
+                    choices=choices,
+                    answer="ABCD"[ic_row["label"]],
+                    qa_format=qa_format,
                 )
                 + "\n\n"
             )
 
         choices = [row["ctx_b"].strip().capitalize() + " " + end for end in row["endings"]]
-        prompt += format_example(question, passage=row["ctx_a"].strip(), choices=choices)
+        prompt += format_example(question, passage=row["ctx_a"].strip(), choices=choices, qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- Example prompt ---\n{prompts[0]}\n----------------------")
@@ -38,17 +48,14 @@ def evaluate_hellaswag(model, tokenizer, test_df, batch_size, num_incontext_exam
         model=model,
         tokenizer=tokenizer,
         do_sample=False,
-        max_new_tokens=1,
+        max_new_tokens=5,
         batch_size=batch_size,
     )
 
     results = []
     for prompt, output, label in zip(prompts, outputs, test_df.label):
         output = output.split("\n")[0]
-        if output and output[0] in "ABCD":
-            parsed_answer = output[0]
-        else:
-            parsed_answer = None
+        parsed_answer = parse_mc_pred(output)
         results.append(
             {
                 "prompt": prompt,
