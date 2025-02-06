@@ -13,7 +13,8 @@ seed_all(42)
 @click.option("--model_name_or_path", type=str, default="pile-npt25k")
 @click.option("--step", type=int, default=None)
 @click.option("--overwrite", is_flag=True, default=False)
-def main(model_name_or_path: str, step: int, overwrite: bool):
+@click.option("--qa_format", type=str, default=None)
+def main(model_name_or_path: str, step: int, overwrite: bool, qa_format: str):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step)
 
     for task_name in EVALUATION_CONFIGS:
@@ -22,6 +23,8 @@ def main(model_name_or_path: str, step: int, overwrite: bool):
         kwargs = {
             key: task_config[key] for key in task_config if key not in {"path", "eval_func", "max_num_examples"}
         }
+        if qa_format:  # override qa_format if provided
+            kwargs["qa_format"] = qa_format
 
         output_dir = f"results/{task_name.lower()}"
         if kwargs["qa_format"] != "qnan":

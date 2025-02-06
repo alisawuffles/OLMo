@@ -7,6 +7,7 @@ from pathlib import Path
 from olmo.util import ensure_dir
 import json
 import pandas as pd
+from string import ascii_uppercase
 
 
 def prep_incontext_examples(test_df, num_incontext_examples):
@@ -22,7 +23,7 @@ def format_example(question, passage=None, choices=None, answer=None, qa_format=
     """Options for QA format:
     qa: Question: {question}\nAnswer: {answer}
     qnan: Question:\n{question}\nAnswer:\n{answer}
-    q: Question: {question} (only affects final example)
+    q: Question: {question} (if answer=None, else equivalent to qa)
     """
     text = ""
     if passage:
@@ -32,23 +33,38 @@ def format_example(question, passage=None, choices=None, answer=None, qa_format=
     text += question.strip() + "\n"
 
     if choices:
-        for label, choice in zip("ABCD", choices):
+        for label, choice in zip(ascii_uppercase, choices):
             text += f"{label}. {choice.strip()}\n"
 
     if answer or qa_format != "q":
-        text += "Answer:\n" if qa_format == "qnan" else "Answer: "
+        text += "Answer:\n" if qa_format == "qnan" else "Answer:"
     if answer:
-        text += answer.strip()
+        text += answer.strip() if qa_format == "qnan" else " " + answer.strip()
 
     return text
 
 
-def parse_mc_pred(output, num_options=4):
+def parse_mc_pred(output, num_options=4, qa_format="qnan"):
+    """
+    Parses the predicted MC option (e.g., "A") from the model output.
+    Returns None if the output is not a valid MC option.
+    """
     parsed_answer = None
-    output = output.replace("Answer:", " ")  # account for qa_format = "q"
-    output = output.strip()
-    if output and output[0] in "ABCD"[:num_options]:
+    valid = True
+    if qa_format == "q":
+        if output.startswith("Answer:"):
+            output = output.replace("Answer: ", "")  # output answer should start with "Answer: "
+        else:
+            valid = False
+    elif qa_format == "qa":
+        if output.startswith(" "):
+            output = output.lstrip()  # output answer should start with leading space
+        else:
+            valid = False
+
+    if output and valid and (output[0] in ascii_uppercase[:num_options]):
         parsed_answer = output[0]
+
     return parsed_answer
 
 
@@ -60,7 +76,7 @@ def get_checkpoints(model_name):
     return checkpoints
 
 
-def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, max_new_tokens=20):
+def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, max_new_tokens=20, num_beams=1):
     generations = []
     pbar = tqdm(total=len(prompts), desc="Generating")
     for i in range(0, len(prompts), batch_size):
@@ -81,7 +97,7 @@ def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, m
             top_p=1.0,
             return_dict_in_generate=True,
             pad_token_id=tokenizer.pad_token_id,
-            tokenizer=tokenizer,  # required for token healing
+            num_beams=num_beams,
         )
         batch_generations = tokenizer.batch_decode(batch_outputs.sequences, skip_special_tokens=True)
         # remove the prompt from the generation
@@ -135,7 +151,7 @@ def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, st
     return model, tokenizer
 
 
-def write_results(results, output_dir):
+def write_results(results, output_dir, print_metrics=False):
     metrics = {
         "accuracy": np.mean([r["correct"] for r in results]),
         "num_examples": len(results),
@@ -143,6 +159,10 @@ def write_results(results, output_dir):
 
     if "valid" in results[0]:
         metrics["valid_answer"] = np.mean([r["valid"] for r in results])
+
+    if print_metrics:
+        for k, v in metrics.items():
+            print(f"{k}: {v}")
 
     output_dir = Path(output_dir)
     ensure_dir(output_dir)

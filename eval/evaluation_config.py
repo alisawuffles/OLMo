@@ -8,6 +8,7 @@ from eval.hotpotqa.run_eval import evaluate_hotpotqa
 from eval.jeopardy.run_eval import evaluate_jeopardy
 from eval.lambada.run_eval import evaluate_lambada
 from eval.mmlu.run_eval import evaluate_mmlu
+from eval.mmlu_pro.run_eval import evaluate_mmlu_pro
 from eval.openbookqa.run_eval import evaluate_openbookqa
 from eval.squad.run_eval import evaluate_squad
 from eval.tofu.run_eval import evaluate_tofu
@@ -94,7 +95,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 128,
         "qa_format": QA_FORMAT,
     },
-    "lambada": {
+    "Lambada": {
         "path": "olmo_data/eval/lambada/test.jsonl",
         "eval_func": evaluate_lambada,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -102,7 +103,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 64,
         "qa_format": QA_FORMAT,
     },
-    "mmlu": {
+    "MMLU": {
         "path": "olmo_data/eval/mmlu/test.jsonl",
         "eval_func": evaluate_mmlu,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -110,7 +111,15 @@ EVALUATION_CONFIGS = {
         "batch_size": 32,
         "qa_format": QA_FORMAT,
     },
-    "openbookqa": {
+    "MMLU-Pro": {
+        "path": "olmo_data/eval/mmlu-pro/test.jsonl",
+        "eval_func": evaluate_mmlu_pro,
+        "max_num_examples": MAX_NUM_EXAMPLES,
+        "num_incontext_examples": NUM_INCONTEXT_EXAMPLES,
+        "batch_size": 32,
+        "qa_format": QA_FORMAT,
+    },
+    "OpenbookQA": {
         "path": "olmo_data/eval/openbookqa/test.jsonl",
         "eval_func": evaluate_openbookqa,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -118,7 +127,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 64,
         "qa_format": QA_FORMAT,
     },
-    "squad": {
+    "SQuAD": {
         "path": "olmo_data/eval/squad/validation.jsonl",
         "eval_func": evaluate_squad,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -126,7 +135,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 32,
         "qa_format": QA_FORMAT,
     },
-    "tofu": {
+    "TOFU": {
         "path": "olmo_data/eval/tofu/world_facts.jsonl",
         "eval_func": evaluate_tofu,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -134,7 +143,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 128,
         "qa_format": QA_FORMAT,
     },
-    "triviaqa": {
+    "TriviaQA": {
         "path": "olmo_data/eval/triviaqa/validation.jsonl",
         "eval_func": evaluate_triviaqa,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -142,7 +151,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 128,
         "qa_format": QA_FORMAT,
     },
-    "wikidataqa": {
+    "WikidataQA": {
         "path": "olmo_data/eval/wikidataqa/task.json",
         "eval_func": evaluate_wikidataqa,
         "max_num_examples": MAX_NUM_EXAMPLES,
@@ -150,7 +159,7 @@ EVALUATION_CONFIGS = {
         "batch_size": 128,
         "qa_format": "cont",
     },
-    "winogrande": {
+    "Winogrande": {
         "path": "olmo_data/eval/winogrande/dev.jsonl",
         "eval_func": evaluate_winogrande,
         "max_num_examples": MAX_NUM_EXAMPLES,

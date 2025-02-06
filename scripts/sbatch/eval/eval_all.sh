@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=nvr_lacr_llm
-#SBATCH --partition=interactive
-#SBATCH --time=02:00:00
+#SBATCH --partition=batch
+#SBATCH --time=04:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name=nvr_lacr_llm-eval.all
 #SBATCH --output="slurm/eval/slurm-%J-%x.out"

@@ -2,17 +2,20 @@
 
 import click
 import pandas as pd
-import json
-import numpy as np
-from pathlib import Path
-from eval.util import load_model_and_tokenizer, batched_generate, prep_incontext_examples
-from olmo.util import ensure_dir, read_json, seed_all
+from eval.util import (
+    load_model_and_tokenizer,
+    batched_generate,
+    prep_incontext_examples,
+    write_results,
+    format_example,
+)
+from olmo.util import read_json, seed_all
 from tqdm import tqdm
 
 seed_all(42)
 
 
-def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="cont"):
+def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -20,11 +23,20 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
     for i, row in tqdm(test_df.iterrows()):
         prompt = ""
         for j in incontext_indices[i]:
-            maybe_targets = test_df.iloc[j]["target"]
+            incontext_row = test_df.iloc[j]
+            maybe_targets = incontext_row["target"]
             target = maybe_targets if isinstance(maybe_targets, str) else maybe_targets[0]
-            prompt += test_df.iloc[j]["input"] + " " + target + ".\n"
+            if qa_format == "cont":
+                prompt += incontext_row["input"] + " " + target + ".\n\n"
+            else:
+                prompt += (
+                    format_example(question=incontext_row["input"], answer=target, qa_format=qa_format) + "\n\n"
+                )
 
-        prompt += row["input"]
+        if qa_format == "cont":
+            prompt += row["input"]
+        else:
+            prompt += format_example(question=row["input"], qa_format=qa_format)
         prompts.append(prompt)
 
     print(f"--- WikidataQA example prompt ---\n{prompts[0]}\n----------------------")
@@ -38,7 +50,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
     )
     results = []
     for prompt, output, target in zip(prompts, outputs, test_df.target):
-        output = output.split("\n")[0].rstrip(".,!?")
+        output = output.split("\n\n")[0].rstrip(".,!?")
         results.append(
             {
                 "prompt": prompt,
@@ -57,7 +69,7 @@ def evaluate_wikidataqa(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--num_incontext_examples", type=int, default=10)
 @click.option("--eval_batch_size", type=int, default=128)
-@click.option("--add_bos_token", is_flag=True, default=False)
+@click.option("--qa_format", type=str, default=None)
 def main(
     model_name_or_path: str,
     output_dir: str,
@@ -65,36 +77,23 @@ def main(
     max_num_examples: int,
     num_incontext_examples: int,
     eval_batch_size: int,
-    add_bos_token: bool,
+    qa_format: str,
 ):
-    model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, add_bos_token=add_bos_token)
+    model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step)
     test_df = pd.DataFrame(read_json("olmo_data/eval/wikidataqa/task.json")["examples"])
 
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples))
 
     results = evaluate_wikidataqa(
-        model, tokenizer, test_df, batch_size=eval_batch_size, num_incontext_examples=num_incontext_examples
+        model,
+        tokenizer,
+        test_df,
+        batch_size=eval_batch_size,
+        num_incontext_examples=num_incontext_examples,
+        qa_format=qa_format,
     )
-    metrics = {
-        "accuracy": np.mean([r["correct"] for r in results]),
-        "num_examples": len(results),
-    }
-    # print metrics
-    for k, v in metrics.items():
-        print(f"{k}: {v}")
-
-    if add_bos_token:
-        output_dir += "-bos"
-    output_dir = Path(output_dir)
-    ensure_dir(output_dir)
-    print(f"Saving results to {output_dir}")
-
-    with open(output_dir / "metrics.json", "w") as fo:
-        json.dump(metrics, fo, indent=4)
-    with open(output_dir / "example_prompt.txt", "w") as fo:
-        fo.write(results[0]["prompt"])
-    pd.DataFrame(results).to_json(output_dir / "predictions.jsonl", orient="records", lines=True)
+    write_results(results, output_dir, print_metrics=True)
 
 
 if __name__ == "__main__":

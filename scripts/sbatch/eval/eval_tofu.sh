@@ -13,7 +13,8 @@ date
 echo "Evaluating $model_name at step $step on TOFU"
 python -m eval.tofu.run_eval \
     --model_name_or_path models/hf_models/$model_name \
-    --output_dir results/tofu-ice${num_incontext_examples}/$model_name/$step \
+    --output_dir $output_dir \
     --num_incontext_examples $num_incontext_examples \
+    ${eval_batch_size:+--eval_batch_size "$eval_batch_size"} \
     ${step:+--step "$step"} \
-    ${add_bos_token:+--add_bos_token}
+    ${qa_format:+--qa_format "$qa_format"}

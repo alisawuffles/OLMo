@@ -10,13 +10,20 @@ cat $0
 echo "--------------------"
 date
 
-max_context_length=512
+if [ -z "$max_context_length" ]; then
+    echo "max_context_length will be the model's max sequence length"
+    output_dir=results/bpb/$model_name/$step
+else
+    echo "max_context_length is set to $max_context_length"
+    output_dir=results/bpb-ctx${max_context_length}/$model_name/$step
+fi
+
 echo "Evaluating bits per byte of $model_name at step $step"
 python -m eval.eval_bpb \
     --model_name_or_path models/hf_models/$model_name \
     --max_num_examples 1000 \
-    --max_context_length $max_context_length \
     --eval_batch_size 2 \
-    --output_dir results/bpb-ctx${max_context_length}/$model_name/$step \
+    --output_dir $output_dir \
+    ${eval_batch_size:+--eval_batch_size "$eval_batch_size"} \
     ${step:+--step "$step"} \
-    ${add_bos_token:+--add_bos_token}
+    ${qa_format:+--qa_format "$qa_format"}

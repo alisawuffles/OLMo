@@ -13,10 +13,11 @@ date
 echo "Evaluating $model_name at step $step on HotpotQA"
 python -m eval.hotpotqa.run_eval \
     --model_name_or_path models/hf_models/$model_name \
-    --output_dir results/hotpotqa-ice${num_incontext_examples}/$model_name/$step \
+    --output_dir $output_dir \
     --num_incontext_examples $num_incontext_examples \
     --max_num_examples 1000 \
     --with_passage \
     --full_passage \
+    ${eval_batch_size:+--eval_batch_size "$eval_batch_size"} \
     ${step:+--step "$step"} \
-    ${add_bos_token:+--add_bos_token}
+    ${qa_format:+--qa_format "$qa_format"}
