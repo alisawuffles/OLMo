@@ -23,7 +23,7 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
 
     def get_segmentations(input_ids, constraint):
         logits_processor = LogitsProcessorList(
-            [SurfaceFormConstraintLogitsProcessor(constraint, tokenizer, device=model.device)]
+            [SurfaceFormConstraintLogitsProcessor(constraint, tokenizer, verbose=True)]
         )
         model.generation_config.early_stopping = True
         outputs = model.generate(
@@ -41,11 +41,11 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
     examples = []
     # one document at a time
     for text in tqdm(eval_data):
-        text = "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar. Learn about the stages, categories, and examples of lexical tokens, and the difference between lexical analysis and large language models."
-        # text = "I like pie."
-        print(text)
+        # text = "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar. Learn about the stages, categories, and examples of lexical tokens, and the difference between lexical analysis and large language models."
+        text = "I like pie."
+        # print(text)
         inputs = tokenizer(
-            text,
+            text + tokenizer.eos_token,
             return_tensors="pt",
             padding=True,
             truncation=True,
@@ -53,44 +53,57 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
         )
         inputs.attention_mask = inputs.attention_mask.to(model.device)
         inputs.input_ids = inputs.input_ids.to(model.device)
-        print(f"inputs.input_ids (BPE segmentation): {inputs.input_ids}")
         first_token = inputs.input_ids[0, 0].unsqueeze(0).unsqueeze(0)
         print(first_token)
         segmentations = get_segmentations(first_token, constraint=text)
-        print(f"segmentations.sequences: {segmentations.sequences}")
-        # stack inputs.input_ids and segmentation_ids, which will require resizing inputs.input_ids
-        # all_input_ids = torch.cat([inputs.input_ids, segmentation_ids], dim=1)
+        segmentation_ids = segmentations.sequences
+
+        # stack the input_ids corresponding to canonical BPE segmentation and alternate segmentations
+        print(f"inputs.input_ids (BPE segmentation): {inputs.input_ids}")
+        print(f"segmentations.sequences: {segmentation_ids}")
+        input_ids = F.pad(
+            inputs.input_ids,
+            (0, segmentation_ids.size(1) - inputs.input_ids.size(1)),
+            value=tokenizer.pad_token_id,
+        )
+        input_ids = torch.cat([input_ids, segmentation_ids], dim=0).unique(dim=0)
+        attention_mask = (input_ids != tokenizer.pad_token_id).long()
+        print(f"inputs.input_ids: {inputs.input_ids}")
+        print(f"input_ids: {input_ids}")
+        print(f"attention_mask: {attention_mask}")
 
         with torch.no_grad():
-            outputs = model(**inputs, return_dict=True)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, return_dict=True)
             logits = outputs.logits.to(model.device)
-            labels = inputs.input_ids.clone()
+            labels = input_ids.clone()
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            shift_attention_mask = inputs.attention_mask[..., :-1].contiguous()
+            shift_attention_mask = attention_mask[..., 1:].contiguous()
 
             seq_losses = []
-            for seg_ids in segmentations.sequences:
+            for seg_ids in segmentation_ids:
+                print(f"seg_ids: {seg_ids}")
+                print(tokenizer.convert_ids_to_tokens(seg_ids))
                 indices = (seg_ids == tokenizer.eos_token_id).nonzero().squeeze()
                 end_idx = indices.item()
-                seg_ids = seg_ids[:end_idx]
-                print(tokenizer.convert_ids_to_tokens(seg_ids))
-                if torch.equal(seg_ids, inputs.input_ids):
+                seg_ids = seg_ids[: end_idx + 1]
+                if torch.equal(seg_ids, inputs.input_ids.squeeze(0)):
                     print("Equivalent to BPE segmentation.")
-                    continue
+                    # continue
                 per_token_loss = model(seg_ids.unsqueeze(0), labels=seg_ids.unsqueeze(0)).loss  # mean reduction
-                seq_loss = per_token_loss * seg_ids.size(0)
+                seq_loss = per_token_loss * (seg_ids.size(0) - 1)
                 print(f"Seq loss: {seq_loss}")
                 seq_losses.append(seq_loss)
 
         # get neg log likelihood
         loss = F.cross_entropy(shift_logits.transpose(1, 2), shift_labels, reduction="none") * shift_attention_mask
-        total_loss += loss.sum()
-        seq_losses.append(loss.sum())
+        print(f"loss: {loss}")
+        total_loss += loss[0].sum()
         total_tokens += shift_attention_mask.sum()
+        print(f"segmentations.sequences_scores: {segmentations.sequences_scores}")
 
         # corrected bpb
-        total_corrected_loss += -torch.logsumexp(-torch.tensor(seq_losses), dim=0)
+        total_corrected_loss += -torch.logsumexp(-torch.tensor(loss.sum(dim=0)), dim=0)
 
         total_bytes += sum(
             len(text) for text in tokenizer.batch_decode(inputs.input_ids, skip_special_tokens=True)
@@ -133,7 +146,6 @@ python -m eval.eval_corrected_bpb \
 )
 @click.option("--max_num_examples", type=int, default=None)
 @click.option("--eval_batch_size", type=int, default=8)
-@click.option("--add_bos_token", is_flag=True, default=False)
 @click.option("--max_context_length", type=int, default=None)
 @click.option("--constraint_beam_size", type=int, default=4)
 def main(
@@ -143,11 +155,10 @@ def main(
     eval_dir: str,
     max_num_examples: int,
     eval_batch_size: int,
-    add_bos_token: bool,
     max_context_length: int,
     constraint_beam_size: int,
 ):
-    model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, add_bos_token=add_bos_token)
+    model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step, padding_side="right")
     max_context_length = max_context_length or model.config.max_position_embeddings
     print(f"Using max context length of {max_context_length}")
 
@@ -176,8 +187,6 @@ def main(
     for k, v in metrics.items():
         print(f"{k}: {v}")
 
-    if add_bos_token:
-        output_dir += "-bos"
     output_dir = Path(output_dir)
     ensure_dir(output_dir)
     print(f"Saving results to {output_dir}")

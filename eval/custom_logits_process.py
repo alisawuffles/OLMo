@@ -16,6 +16,8 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
             The id(s) of the *end-of-sequence* token.
         device (`str`, *optional*, defaults to `"cpu"`):
             The device to allocate the tensors.
+        verbose (`bool`, `optional`, defaults to `False`):
+            Whether to print debug information
     """
 
     def __init__(self, constraint: str, tokenizer: AutoTokenizer, device: str = "cpu", verbose: bool = False):
@@ -26,6 +28,9 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
         self.verbose = verbose
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if self.verbose:
+            print("-------")
+
         decoded_outputs = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
         for i, decoded_output in enumerate(decoded_outputs):
             if self.verbose:
