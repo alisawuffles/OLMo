@@ -22,9 +22,7 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
     total_bytes = 0
 
     def get_segmentations(input_ids, constraint):
-        logits_processor = LogitsProcessorList(
-            [SurfaceFormConstraintLogitsProcessor(constraint, tokenizer, verbose=True)]
-        )
+        logits_processor = LogitsProcessorList([SurfaceFormConstraintLogitsProcessor(constraint, tokenizer)])
         model.generation_config.early_stopping = True
         outputs = model.generate(
             input_ids,
@@ -39,71 +37,47 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
         return outputs
 
     examples = []
+
     # one document at a time
     for text in tqdm(eval_data):
         # text = "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar. Learn about the stages, categories, and examples of lexical tokens, and the difference between lexical analysis and large language models."
         text = "I like pie."
-        # print(text)
         inputs = tokenizer(
-            text + tokenizer.eos_token,
+            tokenizer.eos_token + text + tokenizer.eos_token,
             return_tensors="pt",
             padding=True,
             truncation=True,
             max_length=max_context_length,
         )
-        inputs.attention_mask = inputs.attention_mask.to(model.device)
-        inputs.input_ids = inputs.input_ids.to(model.device)
-        first_token = inputs.input_ids[0, 0].unsqueeze(0).unsqueeze(0)
-        print(first_token)
-        segmentations = get_segmentations(first_token, constraint=text)
-        segmentation_ids = segmentations.sequences
-
-        # stack the input_ids corresponding to canonical BPE segmentation and alternate segmentations
-        print(f"inputs.input_ids (BPE segmentation): {inputs.input_ids}")
-        print(f"segmentations.sequences: {segmentation_ids}")
-        input_ids = F.pad(
-            inputs.input_ids,
-            (0, segmentation_ids.size(1) - inputs.input_ids.size(1)),
-            value=tokenizer.pad_token_id,
-        )
-        input_ids = torch.cat([input_ids, segmentation_ids], dim=0).unique(dim=0)
-        attention_mask = (input_ids != tokenizer.pad_token_id).long()
-        print(f"inputs.input_ids: {inputs.input_ids}")
-        print(f"input_ids: {input_ids}")
-        print(f"attention_mask: {attention_mask}")
+        input_ids = inputs.input_ids.to(model.device)
 
         with torch.no_grad():
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, return_dict=True)
-            logits = outputs.logits.to(model.device)
-            labels = input_ids.clone()
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            shift_attention_mask = attention_mask[..., 1:].contiguous()
+            # 1. calculate loss of BPE segmentation
+            per_token_loss = model(input_ids=input_ids, labels=input_ids, return_dict=True).loss
+            bpe_loss = (per_token_loss * (input_ids.size(1) - 1)).item()
 
-            seq_losses = []
-            for seg_ids in segmentation_ids:
-                print(f"seg_ids: {seg_ids}")
-                print(tokenizer.convert_ids_to_tokens(seg_ids))
-                indices = (seg_ids == tokenizer.eos_token_id).nonzero().squeeze()
-                end_idx = indices.item()
-                seg_ids = seg_ids[: end_idx + 1]
-                if torch.equal(seg_ids, inputs.input_ids.squeeze(0)):
-                    print("Equivalent to BPE segmentation.")
-                    # continue
-                per_token_loss = model(seg_ids.unsqueeze(0), labels=seg_ids.unsqueeze(0)).loss  # mean reduction
-                seq_loss = per_token_loss * (seg_ids.size(0) - 1)
-                print(f"Seq loss: {seq_loss}")
-                seq_losses.append(seq_loss)
+            # 2. calculate loss of other segmentations
+            first_token = inputs.input_ids[0, 0].unsqueeze(0).unsqueeze(0)
+            segmentations = get_segmentations(first_token, constraint=text)
+            segmentation_ids = segmentations.sequences.to(input_ids.device)
+            segmentation_scores = segmentations.sequences_scores.to(input_ids.device)
 
-        # get neg log likelihood
-        loss = F.cross_entropy(shift_logits.transpose(1, 2), shift_labels, reduction="none") * shift_attention_mask
-        print(f"loss: {loss}")
-        total_loss += loss[0].sum()
-        total_tokens += shift_attention_mask.sum()
-        print(f"segmentations.sequences_scores: {segmentations.sequences_scores}")
+            # exclude segmentations found by beam search that are equivalent to BPE
+            neq_bpe_mask = ~(segmentation_ids[:, : input_ids.size(1)] == input_ids).all(dim=-1)
+            neq_bpe_mask = neq_bpe_mask.to(input_ids.device)
+            segmentation_ids = segmentation_ids[neq_bpe_mask]
+            segmentation_scores = segmentation_scores[neq_bpe_mask]
 
-        # corrected bpb
-        total_corrected_loss += -torch.logsumexp(-torch.tensor(loss.sum(dim=0)), dim=0)
+            # loss returned by beam search is at the token level, so we need to multiply by the length
+            segmentation_lens = (segmentation_ids == tokenizer.eos_token_id).nonzero()[:, 1]
+            segmentation_loss = -torch.mul(segmentation_scores, segmentation_lens)
+
+        total_loss += bpe_loss
+        total_tokens += inputs.attention_mask[..., 1:].sum()
+        segmentation_loss = torch.cat(
+            (segmentation_loss, torch.tensor([bpe_loss], device=segmentation_loss.device))
+        )
+        total_corrected_loss += -torch.logsumexp(-torch.tensor(segmentation_loss), dim=0)
 
         total_bytes += sum(
             len(text) for text in tokenizer.batch_decode(inputs.input_ids, skip_special_tokens=True)
