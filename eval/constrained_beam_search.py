@@ -28,15 +28,16 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
             The device to allocate the tensors.
     """
 
-    def __init__(self, constraint: str, eos_token_id: int, device: str = "cpu"):
+    def __init__(self, constraint: str, tokenizer: AutoTokenizer, device: str = "cpu"):
         self.constraint = constraint
-        self.eos_token_id = eos_token_id
+        self.tokenizer = tokenizer
+        self.eos_token_id = tokenizer.eos_token_id
         self.vocab = tokenizer.get_vocab()
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        decoded_outputs = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+        decoded_outputs = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
         for i, decoded_output in enumerate(decoded_outputs):
-            print(f"Seq {i}: current sequence is {tokenizer.convert_ids_to_tokens(input_ids[i])}")
+            print(f"Seq {i}: current sequence is {self.tokenizer.convert_ids_to_tokens(input_ids[i])}")
 
             # when constraint is satisfied, force the next token to be eos
             if self.constraint == decoded_output:
@@ -50,9 +51,9 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
             valid_next_token_ids = [
                 token_id
                 for token, token_id in self.vocab.items()
-                if self.constraint.replace(decoded_output, "").startswith(tokenizer.decode(token_id))
+                if self.constraint.replace(decoded_output, "").startswith(self.tokenizer.decode(token_id))
             ]
-            print(f"    Valid next-token choices are {tokenizer.convert_ids_to_tokens(valid_next_token_ids)}")
+            print(f"    Valid next-token choices are {self.tokenizer.convert_ids_to_tokens(valid_next_token_ids)}")
             mask = torch.zeros_like(scores[i], dtype=torch.bool)
             mask[valid_next_token_ids] = True
             scores[i][~mask] = float("-inf")
@@ -64,9 +65,10 @@ input_ids = tokenizer(input_text, return_tensors="pt").input_ids
 print(input_ids)
 
 # constraint = "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar. Learn about the stages, categories, and examples of lexical tokens, and the difference between lexical analysis and large language models."
-constraint = (
-    "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar."
-)
+constraint = [
+    "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar.",
+    "Hello world!",
+]
 logits_processor = LogitsProcessorList([SurfaceFormConstraintLogitsProcessor(constraint, tokenizer.eos_token_id)])
 model.generation_config.early_stopping = True
 outputs = model.generate(
@@ -111,7 +113,7 @@ for o_ids in outputs.sequences:
 print("----")
 original_bpb = (canonical_loss / torch.log(torch.tensor(2.0)) / len(constraint)).item()
 modified_bpb = (
-    -torch.logsumexp(-torch.tensor(all_losses), dim=0) / torch.log(torch.tensor(2.0)) / num_text_bytes
+    -torch.logsumexp(-torch.tensor(all_losses), dim=0) / torch.log(torch.tensor(2.0)) / len(constraint)
 ).item()
 print(f"original_bpb: {original_bpb}")
 print(f"modified_bpb: {modified_bpb}")
