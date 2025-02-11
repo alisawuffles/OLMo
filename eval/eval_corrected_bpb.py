@@ -21,7 +21,8 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
     total_tokens = 0
     total_bytes = 0
 
-    def get_segmentations(input_ids, constraint):
+    def get_segmentations(constraint):
+        input_ids = tokenizer(tokenizer.eos_token, return_tensors="pt").input_ids
         logits_processor = LogitsProcessorList([SurfaceFormConstraintLogitsProcessor(constraint, tokenizer)])
         model.generation_config.early_stopping = True
         outputs = model.generate(
@@ -40,8 +41,6 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
 
     # one document at a time
     for text in tqdm(eval_data):
-        # text = "Lexical analysis is the conversion of a text into meaningful lexical tokens based on a lexical grammar. Learn about the stages, categories, and examples of lexical tokens, and the difference between lexical analysis and large language models."
-        text = "I like pie."
         inputs = tokenizer(
             tokenizer.eos_token + text + tokenizer.eos_token,
             return_tensors="pt",
@@ -57,8 +56,7 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
             bpe_loss = (per_token_loss * (input_ids.size(1) - 1)).item()
 
             # 2. calculate loss of other segmentations
-            first_token = inputs.input_ids[0, 0].unsqueeze(0).unsqueeze(0)
-            segmentations = get_segmentations(first_token, constraint=text)
+            segmentations = get_segmentations(constraint=tokenizer.eos_token + text)
             segmentation_ids = segmentations.sequences.to(input_ids.device)
             segmentation_scores = segmentations.sequences_scores.to(input_ids.device)
 
@@ -69,7 +67,7 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
             segmentation_scores = segmentation_scores[neq_bpe_mask]
 
             # loss returned by beam search is at the token level, so we need to multiply by the length
-            segmentation_lens = (segmentation_ids == tokenizer.eos_token_id).nonzero()[:, 1]
+            segmentation_lens = (segmentation_ids == tokenizer.eos_token_id).nonzero()[:, 1][1::2]
             segmentation_loss = -torch.mul(segmentation_scores, segmentation_lens)
 
         total_loss += bpe_loss
@@ -83,15 +81,25 @@ def get_corrected_bits_per_byte(model, tokenizer, eval_data, batch_size, max_con
             len(text) for text in tokenizer.batch_decode(inputs.input_ids, skip_special_tokens=True)
         )
 
+        examples.append(
+            {
+                "text": text,
+                "bpe_segmentation": tokenizer.convert_ids_to_tokens(input_ids[0]),
+                "bpe_loss": bpe_loss,
+                "other_segmentations": [tokenizer.convert_ids_to_tokens(ids) for ids in segmentation_ids],
+                "segmentation_loss": segmentation_loss[:-1].tolist(),
+            }
+        )
+
     bits_per_byte = total_loss / torch.log(torch.tensor(2.0)) / total_bytes
     corrected_bits_per_byte = total_corrected_loss / torch.log(torch.tensor(2.0)) / total_bytes
     metrics = {
         "bits_per_byte": bits_per_byte.item(),
         "corrected_bits_per_byte": corrected_bits_per_byte.item(),
-        "total_tokens": total_tokens.item(),
         "total_bytes": total_bytes,
         "num_examples": len(eval_data),
         "max_context_length": max_context_length,
+        "total_tokens": total_tokens.item(),
     }
 
     return metrics, examples
@@ -105,6 +113,8 @@ python -m eval.eval_corrected_bpb \
     --step $step \
     --output_dir results/bpb/temp \
     --max_num_examples 1
+
+EOS is placed at both the beginning and the end of a document.
 """
 
 

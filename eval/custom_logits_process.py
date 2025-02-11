@@ -31,7 +31,7 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
         if self.verbose:
             print("-------")
 
-        decoded_outputs = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+        decoded_outputs = self.tokenizer.batch_decode(input_ids, skip_special_tokens=False)
         for i, decoded_output in enumerate(decoded_outputs):
             if self.verbose:
                 print(f"Seq {i}: current sequence is {self.tokenizer.convert_ids_to_tokens(input_ids[i])}")
@@ -49,7 +49,7 @@ class SurfaceFormConstraintLogitsProcessor(LogitsProcessor):
             valid_next_token_ids = [
                 token_id
                 for token, token_id in self.vocab.items()
-                if self.constraint.replace(decoded_output, "").startswith(self.tokenizer.decode(token_id))
+                if self.constraint[len(decoded_output) :].startswith(self.tokenizer.decode(token_id))
             ]
             if self.verbose:
                 print(f"    Next-token choices: {self.tokenizer.convert_ids_to_tokens(valid_next_token_ids)}")
