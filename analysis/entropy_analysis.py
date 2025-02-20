@@ -46,11 +46,10 @@ def main(
         eval_data.extend(df.text.tolist())
         if len(eval_data) >= max_num_examples:
             break
-
     print(f"Loaded {len(eval_data)} examples.")
 
     t = os.path.dirname(pts_tokenizer_path).split("-")[-3]
-    fo = open(f"analysis/entropy_results_{t}.jsonl", "w")
+    fo = open(f"analysis/data/entropy_results_{t}.jsonl", "w")
 
     for i in tqdm(range(0, len(eval_data), batch_size)):
         batch_texts = eval_data[i : i + batch_size]
@@ -93,7 +92,7 @@ def main(
                 pt_token_boundaries.append(pt_token_boundaries[-1] + len(token))
 
             # for each token, determine whether it's in the "middle" of a superword token
-            within_token_bounds = []
+            data = []
             for idx in range(1, len(pt_tokenized)):  # start at idx 1 to skip EOS token
                 a, b = pt_token_boundaries[idx], pt_token_boundaries[idx + 1]
                 within_superword_token = True
@@ -101,12 +100,18 @@ def main(
                 # in the middle of a superword token
                 if any([a <= boundary < b for boundary in pts_token_boundaries]):
                     within_superword_token = False
-                within_token_bounds.append(within_superword_token)
 
-            data = [
-                (tok, ent.item(), within)
-                for tok, ent, within in zip(pt_tokenized[1:], entropies[i][:-1], within_token_bounds)
-            ]
+                # get the superword token that contains this subword token
+                pts_token = None
+                if within_superword_token:
+                    token_idx = [
+                        i
+                        for i in range(len(pts_token_boundaries) - 1)
+                        if pts_token_boundaries[i] < a < pts_token_boundaries[i + 1]
+                    ][0]
+                    pts_token = pts_tokenized[token_idx]
+
+                data.append((pt_tokenized[idx], entropies[i][idx - 1].item(), within_superword_token, pts_token))
 
             ex = {
                 "sentence": batch_texts[i],
