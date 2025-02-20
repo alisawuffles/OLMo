@@ -24,6 +24,7 @@ from eval.util import load_model_and_tokenizer
 @click.option("--max_context_length", type=int, default=None)
 @click.option("--constraint_beam_size", type=int, default=4)
 @click.option("--batch_size", type=int, default=1)
+@click.option("--overwrite", is_flag=True, default=False)
 def main(
     pt_model_path: str,
     pts_tokenizer_path: str,
@@ -32,6 +33,7 @@ def main(
     max_context_length: int,
     constraint_beam_size: int,
     batch_size: int,
+    overwrite: bool,
 ):
     model, pt_tokenizer = load_model_and_tokenizer(pt_model_path, padding_side="right")
     max_context_length = max_context_length or model.config.max_position_embeddings
@@ -49,7 +51,12 @@ def main(
     print(f"Loaded {len(eval_data)} examples.")
 
     t = os.path.dirname(pts_tokenizer_path).split("-")[-3]
-    fo = open(f"analysis/data/entropy_results_{t}.jsonl", "w")
+    fo_path = f"analysis/data/entropy_results_{t}.jsonl"
+    if os.path.exists(fo_path) and not overwrite:
+        print(f"File {fo_path} already exists. Skipping.")
+        return
+
+    fo = open(fo_path, "w")
 
     for i in tqdm(range(0, len(eval_data), batch_size)):
         batch_texts = eval_data[i : i + batch_size]
@@ -91,15 +98,18 @@ def main(
             for token in pt_tokenized:
                 pt_token_boundaries.append(pt_token_boundaries[-1] + len(token))
 
-            # for each token, determine whether it's in the "middle" of a superword token
+            # for each token, determine whether it's contained entirely in a superword token
             data = []
             for idx in range(1, len(pt_tokenized)):  # start at idx 1 to skip EOS token
                 a, b = pt_token_boundaries[idx], pt_token_boundaries[idx + 1]
-                within_superword_token = True
-                # if the subword token bridges any superword token boundaries, it's NOT
-                # in the middle of a superword token
-                if any([a <= boundary < b for boundary in pts_token_boundaries]):
-                    within_superword_token = False
+                within_superword_token = False
+                if any(
+                    [
+                        (l <= a < b < r) or (l < a < b <= r)
+                        for l, r in zip(pts_token_boundaries, pts_token_boundaries[1:])
+                    ]
+                ):
+                    within_superword_token = True
 
                 # get the superword token that contains this subword token
                 pts_token = None
@@ -107,14 +117,15 @@ def main(
                     token_idx = [
                         i
                         for i in range(len(pts_token_boundaries) - 1)
-                        if pts_token_boundaries[i] < a < pts_token_boundaries[i + 1]
+                        if pts_token_boundaries[i] <= a < pts_token_boundaries[i + 1]
                     ][0]
                     pts_token = pts_tokenized[token_idx]
 
                 data.append((pt_tokenized[idx], entropies[i][idx - 1].item(), within_superword_token, pts_token))
+            print(data)
 
             ex = {
-                "sentence": batch_texts[i],
+                "text": batch_texts[i],
                 "pt_tokens": pt_tokenized[1:],
                 "pts_tokens": pts_tokenized[1:],
                 "data": data,
