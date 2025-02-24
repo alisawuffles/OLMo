@@ -16,6 +16,7 @@ python -m eval.arc.run_eval \
     --output_dir $output_dir \
     --num_incontext_examples $num_incontext_examples \
     --challenge_set \
+    ${max_num_examples:+--max_num_examples "$max_num_examples"} \
     ${eval_batch_size:+--eval_batch_size "$eval_batch_size"} \
     ${step:+--step "$step"} \
     ${qa_format:+--qa_format "$qa_format"}

@@ -1,13 +1,11 @@
-"""Data downloaded from https://storage.googleapis.com/ai2-mosaic/public/winogrande/winogrande_1.1.zip"""
-
 import click
 import pandas as pd
 from eval.util import (
     load_model_and_tokenizer,
     batched_generate,
     format_example,
-    parse_mc_pred,
     prep_incontext_examples,
+    parse_mc_pred,
     write_results,
 )
 from olmo.util import seed_all
@@ -15,7 +13,7 @@ from olmo.util import seed_all
 seed_all(42)
 
 
-def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
+def evaluate_csqa(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -24,19 +22,19 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
         prompt = ""
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
-            question = "Fill in the blank: " + ic_row["sentence"].replace("_", "___").strip()
-            options = [ic_row["option1"], ic_row["option2"]]
             prompt += (
-                format_example(question, choices=options, answer="AB"[ic_row["answer"] - 1], qa_format=qa_format)
+                format_example(
+                    ic_row["question"].strip(),
+                    choices=ic_row["choices"]["text"],
+                    answer=ic_row["answerKey"],
+                    qa_format=qa_format,
+                )
                 + "\n\n"
             )
-
-        question = "Fill in the blank: " + row["sentence"].replace("_", "___").strip()
-        options = [row["option1"], row["option2"]]
-        prompt += format_example(question, choices=options, qa_format=qa_format)
+        prompt += format_example(row["question"].strip(), choices=row["choices"]["text"], qa_format=qa_format)
         prompts.append(prompt)
 
-    print(f"--- Winogrande example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- CommonsenseQA example prompt ---\n{prompts[0]}\n----------------------")
 
     outputs = batched_generate(
         prompts=prompts,
@@ -48,15 +46,15 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
     )
 
     results = []
-    for prompt, output, answer in zip(prompts, outputs, test_df["answer"]):
-        parsed_pred = parse_mc_pred(output, num_options=2, qa_format=qa_format)
+    for prompt, output, options, answer in zip(prompts, outputs, test_df.choices, test_df.answerKey):
+        parsed_pred = parse_mc_pred(output, num_options=len(options["text"]), qa_format=qa_format)
         results.append(
             {
                 "prompt": prompt,
                 "output": output,
-                "answer": "AB"[answer - 1],
+                "answer": answer,
                 "valid": parsed_pred is not None,
-                "correct": parsed_pred == "AB"[answer - 1],
+                "correct": parsed_pred == answer,
             }
         )
 
@@ -69,7 +67,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
 @click.option("--output_dir", type=str, default=None)
 @click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=128)
+@click.option("--eval_batch_size", type=int, default=32)
 @click.option("--qa_format", type=str, default=None)
 def main(
     model_name_or_path: str,
@@ -81,12 +79,12 @@ def main(
     qa_format: str,
 ):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step)
-    test_df = pd.read_json("olmo_data/eval/winogrande/dev.jsonl", lines=True)
 
+    test_df = pd.read_json("olmo_data/eval/commonsenseqa/validation.jsonl", lines=True)
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_winogrande(
+    results = evaluate_csqa(
         model,
         tokenizer,
         test_df,

@@ -1,4 +1,4 @@
-"""Data downloaded from https://storage.googleapis.com/ai2-mosaic/public/winogrande/winogrande_1.1.zip"""
+"""Data downloaded from https://huggingface.co/datasets/Muennighoff/xwinograd"""
 
 import click
 import pandas as pd
@@ -15,7 +15,7 @@ from olmo.util import seed_all
 seed_all(42)
 
 
-def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
+def evaluate_winograd(model, tokenizer, test_df, batch_size, num_incontext_examples, qa_format="qnan"):
     test_df = test_df.reset_index(drop=True)
     incontext_indices = prep_incontext_examples(test_df, num_incontext_examples)
 
@@ -36,7 +36,7 @@ def evaluate_winogrande(model, tokenizer, test_df, batch_size, num_incontext_exa
         prompt += format_example(question, choices=options, qa_format=qa_format)
         prompts.append(prompt)
 
-    print(f"--- Winogrande example prompt ---\n{prompts[0]}\n----------------------")
+    print(f"--- Winogrand example prompt ---\n{prompts[0]}\n----------------------")
 
     outputs = batched_generate(
         prompts=prompts,
@@ -81,12 +81,12 @@ def main(
     qa_format: str,
 ):
     model, tokenizer = load_model_and_tokenizer(model_name_or_path, step=step)
-    test_df = pd.read_json("olmo_data/eval/winogrande/dev.jsonl", lines=True)
+    test_df = pd.read_json("olmo_data/eval/winograd/test.jsonl", lines=True)
 
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_winogrande(
+    results = evaluate_winograd(
         model,
         tokenizer,
         test_df,
