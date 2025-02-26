@@ -17,6 +17,8 @@ from olmo.util import ensure_dir
 SOURCE_DIR = Path(sys.argv[1])
 DEST_DIR = Path(sys.argv[2])
 tokenizer_file = sys.argv[3]
+start_idx = int(sys.argv[4])
+chunk_size = int(sys.argv[5])
 
 input_dtype = np.uint32
 output_dtype = np.uint32
@@ -114,7 +116,9 @@ def incremental_retokenize_parallel(data, fout, progress=True):
     return total_bytes
 
 
-for i, file in enumerate(os.listdir(SOURCE_DIR)):
+# take chunk of 100 files starting at chunk_idx
+all_files = os.listdir(SOURCE_DIR)[start_idx : start_idx + chunk_size]
+for i, file in enumerate(all_files):
     SOURCE_FILE = SOURCE_DIR / file
     DEST_FILE = DEST_DIR / file
 
