@@ -84,7 +84,7 @@ def evaluate_hotpotqa(
 @click.option("--output_dir", type=str, default="results/hotpotqa/olmo-20k")
 @click.option("--num_incontext_examples", type=int, default=1)
 @click.option("--max_num_examples", type=int, default=None)
-@click.option("--eval_batch_size", type=int, default=64)
+@click.option("--eval_batch_size", type=int, default=32)
 @click.option("--with_passage", is_flag=True, default=False)
 @click.option("--full_passage", is_flag=True, default=False)
 @click.option("--qa_format", type=str, default="qnan")

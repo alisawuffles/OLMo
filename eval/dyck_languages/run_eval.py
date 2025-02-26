@@ -1,13 +1,14 @@
 import click
 import pandas as pd
+
 from eval.util import (
-    load_model_and_tokenizer,
     batched_generate,
     format_example,
+    load_model_and_tokenizer,
     prep_incontext_examples,
     write_results,
 )
-from olmo.util import seed_all, read_json
+from olmo.util import read_json, seed_all
 
 seed_all(42)
 

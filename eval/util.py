@@ -19,27 +19,48 @@ def prep_incontext_examples(test_df, num_incontext_examples):
     return incontext_indices
 
 
-def format_example(question, passage=None, choices=None, answer=None, qa_format="qnan"):
+def parse_number(output_str, output_type="int"):
+    output_str = output_str.strip().replace(",", "")
+    output_num = None
+    try:
+        if output_type == "int":
+            output_num = int(output_str)
+        elif output_type == "float":
+            output_num = float(output_str)
+    except ValueError:
+        print(f"Failed to parse number: {output_str}")
+        pass
+    return output_num
+
+
+def format_example(
+    question, passage=None, choices=None, answer=None, qa_format="qnan", question_prefix="Question:"
+):
     """Options for QA format:
     qa: Question: {question}\nAnswer: {answer}
     qnan: Question:\n{question}\nAnswer:\n{answer}
+    qna: Question:\n{question}\nAnswer: {answer}
     q: Question: {question} (if answer=None, else equivalent to qa)
     """
     text = ""
     if passage:
         text += f"{passage.strip()}\n\n"
 
-    text += "Question:\n" if qa_format == "qnan" else "Question: "
+    text += question_prefix + "\n" if "qn" in qa_format else question_prefix + " "
     text += question.strip() + "\n"
 
     if choices:
         for label, choice in zip(ascii_uppercase, choices):
             text += f"{label}. {choice.strip()}\n"
 
+    answer_prefix = "Answer:"
     if answer or qa_format != "q":
-        text += "Answer:\n" if qa_format == "qnan" else "Answer:"
+        text += answer_prefix + "\n" if "an" in qa_format else answer_prefix
     if answer:
-        text += answer.strip() if qa_format == "qnan" else " " + answer.strip()
+        if isinstance(answer, str):
+            answer = answer.strip()
+        answer = str(answer)
+        text += answer if "an" in qa_format else " " + answer
 
     return text
 
@@ -52,13 +73,13 @@ def parse_mc_pred(output, num_options=4, qa_format="qnan"):
     parsed_answer = None
     valid = True
     if qa_format == "q":
-        if output.startswith("Answer:"):
-            output = output.replace("Answer: ", "")  # output answer should start with "Answer: "
+        if output.startswith("Answer:"):  # output answer should start with "Answer: "
+            output = output.replace("Answer: ", "")
         else:
             valid = False
-    elif qa_format == "qa":
-        if output.startswith(" "):
-            output = output.lstrip()  # output answer should start with leading space
+    elif qa_format in ["qa", "qna"]:
+        if output.startswith(" "):  # output answer should start with leading space
+            output = output.lstrip()
         else:
             valid = False
 
@@ -76,7 +97,7 @@ def get_checkpoints(model_name):
     return checkpoints
 
 
-def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, max_new_tokens=20, num_beams=1):
+def batched_generate(prompts, model, tokenizer, batch_size=1, **generation_kwargs):
     generations = []
     pbar = tqdm(total=len(prompts), desc="Generating")
     for i in range(0, len(prompts), batch_size):
@@ -92,12 +113,10 @@ def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, m
         batch_outputs = model.generate(
             **batch_inputs,
             num_return_sequences=1,
-            max_new_tokens=max_new_tokens,
-            do_sample=do_sample,
-            top_p=1.0,
             return_dict_in_generate=True,
             pad_token_id=tokenizer.pad_token_id,
-            num_beams=num_beams,
+            tokenizer=tokenizer,
+            **generation_kwargs,
         )
         batch_generations = tokenizer.batch_decode(batch_outputs.sequences, skip_special_tokens=True)
         # remove the prompt from the generation
@@ -107,7 +126,7 @@ def batched_generate(prompts, model, tokenizer, do_sample=False, batch_size=1, m
     return generations
 
 
-def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, step=None, add_bos_token=False):
+def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, step=None, padding_side="left"):
     revision = None
     if os.path.exists(model_name_or_path):
         if step:
@@ -139,26 +158,24 @@ def load_model_and_tokenizer(model_name_or_path, tokenizer_name_or_path=None, st
     print(f"Loading tokenizer from {tokenizer_name_or_path}")
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
     tokenizer.backend_tokenizer.model.dropout = 0.0  # always use dropout p = 0.0 for inference
-    if add_bos_token:
-        tokenizer.bos_token = tokenizer.eos_token
-        tokenizer.bos_token_id = tokenizer.eos_token_id
-        tokenizer.add_bos_token = True
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
-    tokenizer.padding_side = "left"
+    tokenizer.padding_side = padding_side
 
     return model, tokenizer
 
 
-def write_results(results, output_dir, print_metrics=False):
-    metrics = {
-        "accuracy": np.mean([r["correct"] for r in results]),
-        "num_examples": len(results),
-    }
+def write_results(results, output_dir, metric="accuracy", print_metrics=False):
+    metrics = {"num_examples": len(results), "accuracy": np.mean([r["correct"] for r in results])}
 
     if "valid" in results[0]:
         metrics["valid_answer"] = np.mean([r["valid"] for r in results])
+
+    if "split" in results[0]:
+        for split in sorted(set([r["split"] for r in results])):
+            split_results = [r for r in results if r["split"] == split]
+            metrics[f"{split}_accuracy"] = np.mean([r["correct"] for r in split_results])
 
     if print_metrics:
         for k, v in metrics.items():

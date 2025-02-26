@@ -3,8 +3,8 @@
 # model_name=OLMo2-7B-pts200k-t140k-ctx2818
 # model_name=OLMo2-7B-pts200k-t160k-ctx2881
 # model_name=OLMo2-7B-pts200k-t180k-ctx2995
-# model_name=OLMo2-7B-pts200k-t80k-ctx2756-colon
-model_name=OLMo2-7B-pts200k-t160k-ctx2884-colon
+model_name=OLMo2-7B-pts200k-t80k-ctx2756-colon
+# model_name=OLMo2-7B-pts200k-t160k-ctx2884-colon
 # model_name=OLMo2-7B-pts200k-t180k-ctx3000-colon
 
 # other eval params
@@ -16,8 +16,8 @@ echo "Model: $model_name"
 echo "QA format: $qa_format"
 
 # complete list of tasks
-tasks=("arc-easy" "arc-challenge" "boolq" "commonsenseqa" "copa" "coqa" "cs-algorithms" "drop" "dyck-languages" "hellaswag" "hotpotqa" "jeopardy" "lambada" "language-identification" "lsat" "mmlu" "openbookqa" "operators" "piqa" "repeat-copy-logic" "squad" "tofu" "triviaqa" "wikidataqa" "winograd" "winogrande")
-# tasks=("repeat-copy-logic")
+tasks=("arc-easy" "arc-challenge" "arithmetic" "boolq" "code-description" "commonsenseqa" "copa" "coqa" "cs-algorithms" "cute" "drop" "dyck-languages" "hellaswag" "hotpotqa" "humaneval" "jeopardy" "lambada" "language-identification" "lsat" "mmlu" "openbookqa" "operators" "piqa" "repeat-copy-logic" "squad" "tofu" "triviaqa" "wikidataqa" "winograd" "winogrande")
+# tasks=("humaneval")
 
 # collect steps in a list
 steps=()
@@ -43,6 +43,8 @@ do
     do
         if [ $task == "coqa" ]; then
             output_dir=results/$task-$qa_format/$model_name/$step
+        elif [ $task == "humaneval" ]; then
+            output_dir=results/$task/$model_name/$step
         else
             output_dir=results/$task-$qa_format-ice${num_incontext_examples}/$model_name/$step
         fi
