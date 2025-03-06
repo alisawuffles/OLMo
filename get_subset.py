@@ -40,7 +40,7 @@ def process_file(file_path, data_dir):
 def main():
     data_dir = Path("/lustre/share/llmservice_nlp_fm/adlr-nlp-sharing/sprabhumoye")
     # data_dir = Path("olmo_data/dolmino_dclm")
-    target_data_size = 5 * 10**10
+    target_data_size = 10**5
     ext = ".jsonl"
     # ext = ".json.zst"
     output_dir = Path("olmo_data/nemo_shuffle")
@@ -48,7 +48,6 @@ def main():
     ensure_dir(output_dir)
     files = [str(p) for p in data_dir.rglob(f"*{ext}")]
     file_lengths_path = output_dir / "file_lengths.json"
-    # files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".json.zst")]
 
     # count lines in each file
     if not os.path.exists(file_lengths_path):
@@ -72,8 +71,8 @@ def main():
 
     # Collect document idxs, grouped by file
     num_docs = sum(file_lengths.values())
-    print(f"Total number of documents: {num_docs}")
-    num_docs_to_sample = target_data_size // 1000  # assuming each doc has > 5000 bytes on average
+    print(f"There are {num_docs} documents over {len(ordered_files)} files")
+    num_docs_to_sample = target_data_size // 1000
     global_doc_idxs = np.random.choice(num_docs, size=num_docs_to_sample, replace=False)
 
     cumulative_M = 0
@@ -82,7 +81,7 @@ def main():
         file_len = file_lengths[rel_path]
         file_start, file_end = cumulative_M, cumulative_M + file_len
         global_doc_idxs_for_file = {idx for idx in global_doc_idxs if file_start <= idx < file_end}
-        local_idxs = sorted(idx - file_start for idx in global_doc_idxs_for_file)
+        local_idxs = sorted((idx - file_start).item() for idx in global_doc_idxs_for_file)
         file_info.append((rel_path, local_idxs))
         cumulative_M += file_len
 
@@ -110,19 +109,21 @@ def main():
                 break
             if i < local_idxs[pointer]:  # skip until we reach the next document we need
                 continue
-            if pointer < len(local_idxs) and i == local_idxs[pointer]:
+            while pointer < len(local_idxs) and i == local_idxs[pointer]:
                 text = orjson.loads(line).get("text", "")
+                print(text)
                 data.append(text)
                 data_size += len(text)
                 pbar.update(len(text))
                 pointer += 1
-                if data_size >= target_data_size:
-                    break
-        else:
-            fin.close()
-            continue
+        #         if data_size >= target_data_size:
+        #             print("We have enough data")
+        #             break
+        # else:
+        #     fin.close()
+        #     continue
 
-        break
+        # break
 
     print(f"Total bytes of data: {data_size}")
 
