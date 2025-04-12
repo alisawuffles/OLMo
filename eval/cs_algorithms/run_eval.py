@@ -6,7 +6,6 @@ from eval.util import (
     format_example,
     prep_incontext_examples,
     write_results,
-    parse_number,
 )
 from olmo.util import seed_all, read_json
 

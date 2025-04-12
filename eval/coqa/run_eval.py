@@ -19,7 +19,7 @@ from olmo.util import read_json, seed_all
 seed_all(42)
 
 
-def evaluate_coqa(model, tokenizer, test_df, batch_size, qa_format):
+def evaluate_coqa(model, tokenizer, test_df, batch_size, qa_format, max_num_examples):
     prompts = []
     answers = []
     for _, row in test_df.iterrows():
@@ -29,6 +29,9 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size, qa_format):
             prompt += format_example(question["input_text"].strip(), qa_format=qa_format)
             prompts.append(prompt)
 
+            if len(prompts) >= max_num_examples:
+                break
+
             # add answer for the next example
             prompt += main_answer + "\n\n"
 
@@ -37,6 +40,9 @@ def evaluate_coqa(model, tokenizer, test_df, batch_size, qa_format):
             for key in row["additional_answers"]:
                 answer_aliases.append(row["additional_answers"][key][i]["span_text"].rstrip(".,!?").capitalize())
             answers.append(answer_aliases)
+        else:
+            continue
+        break
 
     print("--- Example prompts ---\n" + "\n----\n".join(prompts[:5]) + "\n----------------------")
 
@@ -80,7 +86,14 @@ def main(
     if max_num_examples:
         test_df = test_df.sample(min(len(test_df), max_num_examples), random_state=42)
 
-    results = evaluate_coqa(model, tokenizer, test_df, batch_size=eval_batch_size, qa_format=qa_format)
+    results = evaluate_coqa(
+        model,
+        tokenizer,
+        test_df,
+        batch_size=eval_batch_size,
+        qa_format=qa_format,
+        max_num_examples=max_num_examples,
+    )
     write_results(results, output_dir, print_metrics=True)
 
 

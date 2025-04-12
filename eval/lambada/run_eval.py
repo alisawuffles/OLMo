@@ -18,22 +18,25 @@ def evaluate_lambada(model, tokenizer, test_df, batch_size, num_incontext_exampl
 
     prompts, continuations = [], []
     for i, row in test_df.iterrows():
-        prompt = ""
+        prompt = "For each incomplete passage below, determine from context what the next word should be.\n\n"
         for j in incontext_indices[i]:
             ic_row = test_df.iloc[j]
             context, next_word = ic_row["text"].rsplit(" ", 1)
-            if qa_format == "cont2":
-                prompt += f"Passage: {context} {next_word}\n\n"
+            if qa_format == "cont":
+                prompt += f"{context} {next_word}\n\n"
             else:
-                question = f"What is the next word in the following passage?\n{context}..."
-                prompt += format_example(question=question, answer=next_word, qa_format=qa_format) + "\n\n"
+                prompt += (
+                    format_example(
+                        question=context, question_prefix="Passage:", answer=next_word, qa_format=qa_format
+                    )
+                    + "\n\n"
+                )
 
         context, next_word = row["text"].rsplit(" ", 1)
-        if qa_format == "cont2":
-            prompt += f"Passage: {context}"
+        if qa_format == "cont":
+            prompt += f"{context}"
         else:
-            question = f"What is the next word in the following passage?\n{context}..."
-            prompt += format_example(question, qa_format=qa_format)
+            prompt += format_example(context, question_prefix="Passage:", qa_format=qa_format)
         prompts.append(prompt)
         continuations.append(next_word)
 

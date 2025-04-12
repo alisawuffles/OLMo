@@ -6,6 +6,7 @@ from eval.util import (
     format_example,
     prep_incontext_examples,
     write_results,
+    parse_mc_pred,
 )
 from olmo.util import seed_all
 
@@ -23,17 +24,19 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
             ic_row = test_df.iloc[j]
             prompt += (
                 format_example(
-                    ic_row["question"].capitalize() + "? Answer with Yes or No.",
+                    ic_row["question"].capitalize() + "?",
                     passage=ic_row["passage"],
-                    answer="Yes" if ic_row["answer"] == 1 else "No",
+                    choices=["Yes", "No"],
+                    answer="A" if ic_row["answer"] == 1 else "B",
                     qa_format=qa_format,
                 )
                 + "\n\n"
             )
 
         prompt += format_example(
-            row["question"].capitalize() + "? Answer with Yes or No.",
+            row["question"].capitalize() + "?",
             passage=row["passage"],
+            choices=["Yes", "No"],
             qa_format=qa_format,
         )
         prompts.append(prompt)
@@ -62,8 +65,8 @@ def evaluate_boolq(model, tokenizer, test_df, batch_size, num_incontext_examples
 
     results = []
     for prompt, output, answer in zip(prompts, outputs, test_df.answer):
-        parsed_pred = parse_pred(output)
-        answer = "Yes" if answer == 1 else "No"
+        parsed_pred = parse_mc_pred(output, qa_format=qa_format, num_options=2)
+        answer = "A" if answer == 1 else "B"
         results.append(
             {
                 "prompt": prompt,
